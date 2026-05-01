@@ -1,0 +1,35 @@
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import { TasksService } from './tasks.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Prisma } from '@prisma/client';
+
+@Controller('tasks')
+@UseGuards(JwtAuthGuard)
+export class TasksController {
+  constructor(private readonly tasksService: TasksService) {}
+
+  @Post()
+  create(@Request() req: any, @Body() createTaskDto: Prisma.TaskUncheckedCreateInput) {
+    return this.tasksService.create(req.user.userId, createTaskDto);
+  }
+
+  @Get('project/:projectId')
+  findAllByProject(@Request() req: any, @Param('projectId') projectId: string) {
+    return this.tasksService.findAllByProject(projectId, req.user.userId);
+  }
+
+  @Get(':id')
+  findOne(@Request() req: any, @Param('id') id: string) {
+    return this.tasksService.findOne(id, req.user.userId);
+  }
+
+  @Patch(':id')
+  update(@Request() req: any, @Param('id') id: string, @Body() updateTaskDto: Prisma.TaskUpdateInput) {
+    return this.tasksService.update(id, req.user.userId, updateTaskDto);
+  }
+
+  @Delete(':id')
+  remove(@Request() req: any, @Param('id') id: string) {
+    return this.tasksService.remove(id, req.user.userId);
+  }
+}
