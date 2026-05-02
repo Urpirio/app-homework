@@ -110,7 +110,7 @@ export class AuthService {
       fullName: data.fullName,
       password: hashedPassword,
       role: data.role as Role,
-      institutionId,
+      institution: { connect: { id: institutionId } },
       isVerified: true, // Usuarios creados por admin se marcan como verificados
     });
 

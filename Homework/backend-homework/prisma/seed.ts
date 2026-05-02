@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient, NotificationType, TaskStatus } from '@prisma/client';
+import { PrismaClient, NotificationType, TaskStatus, Role } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
@@ -24,7 +24,7 @@ async function main() {
       email: 'test@example.com',
       password: hashedPassword,
       fullName: 'John Doe',
-      role: 'Project Manager',
+      role: Role.SUPER_ADMIN,
       avatarUrl: 'https://ui-avatars.com/api/?name=John+Doe&background=007AFF&color=fff',
     },
   });

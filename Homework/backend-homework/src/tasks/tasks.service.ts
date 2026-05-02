@@ -22,7 +22,7 @@ export class TasksService {
         status: status,
         type: data.type as TaskType,
         maxGrade: data.maxGrade,
-        projectId: data.projectId,
+        project: { connect: { id: data.projectId } },
         dueDate: data.dueDate,
       },
       include: { project: true },

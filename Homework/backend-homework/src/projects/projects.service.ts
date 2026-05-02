@@ -16,8 +16,8 @@ export class ProjectsService {
         name: data.name,
         description: data.description,
         color: data.color,
-        userId: user.userId,
-        institutionId: user.institutionId,
+        user: { connect: { id: user.userId } },
+        institution: user.institutionId ? { connect: { id: user.institutionId } } : undefined,
       },
     });
 

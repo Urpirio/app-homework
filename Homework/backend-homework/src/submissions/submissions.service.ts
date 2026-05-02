@@ -42,8 +42,8 @@ export class SubmissionsService {
         updatedAt: new Date(),
       },
       create: {
-        taskId: data.taskId,
-        studentId: userId,
+        task: { connect: { id: data.taskId } },
+        student: { connect: { id: userId } },
         fileUrl: data.fileUrl,
         content: data.content,
         status: SubmissionStatus.SUBMITTED,
