@@ -4,12 +4,13 @@ import { ProjectCard } from '@/components/home/ProjectCard';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Project } from '@/types/project';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View, Dimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { Pressable } from 'react-native';
+import api from '@/utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -48,6 +49,33 @@ const MOCK_PROJECTS: Project[] = [
 
 export default function HomeScreen() {
   const { theme } = useTheme();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProjects = async () => {
+    try {
+      const response = await api.get('/projects');
+      const mappedProjects = response.data.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description || '',
+        progress: 0, 
+        tasksCount: p._count?.tasks || 0,
+        completedTasks: 0,
+        lastAccessed: new Date(p.updatedAt).toLocaleDateString(),
+        color: p.color || theme.colors.primary,
+      }));
+      setProjects(mappedProjects);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
 
   const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;
 
@@ -72,9 +100,17 @@ export default function HomeScreen() {
               </Pressable>
             </View>
 
-            {MOCK_PROJECTS.map((project, index) => (
-              <ProjectCard key={project.id} project={project} index={index} />
-            ))}
+            {loading ? (
+              <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20 }} />
+            ) : projects.length > 0 ? (
+              projects.map((project, index) => (
+                <ProjectCard key={project.id} project={project} index={index} />
+              ))
+            ) : (
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                No tienes proyectos todavía. ¡Crea uno nuevo!
+              </Text>
+            )}
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(600)} style={styles.section}>
@@ -135,5 +171,11 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  emptyText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 20,
+    fontStyle: 'italic',
   },
 });

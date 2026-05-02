@@ -10,6 +10,8 @@ import React, { useState } from 'react';
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import api from '@/utils/api';
+import * as SecureStore from 'expo-secure-store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -55,23 +57,19 @@ export default function LoginScreen() {
     setIsAuthenticating(true);
 
     try {
-      // Simulate async authentication (replace with real API call)
-      await new Promise<void>((resolve, reject) => {
-        setTimeout(() => {
-          // Simulate successful authentication
-          // In production: call your auth service here
-          console.log('Authenticating with:', credentials.email);
-          resolve();
-        }, 1500);
-      });
-
-      // On success: navigate to the main app
-      // router.replace('/(app)/home');
+      // Llamada real al backend en Railway
+      const response = await api.post('/auth/login', credentials);
+      const { access_token } = response.data;
+      
+      // Guardar token de forma segura
+      await SecureStore.setItemAsync('userToken', access_token);
+      
       console.log('Authentication successful');
-    } catch (error) {
-      // Error handling is delegated back to LoginForm via thrown error
-      console.error('Authentication error:', error);
-      throw error;
+      router.replace('/home');
+    } catch (error: any) {
+      console.error('Authentication error:', error.response?.data || error.message);
+      const errorMessage = error.response?.data?.message || 'Correo o contraseña incorrectos';
+      throw new Error(Array.isArray(errorMessage) ? errorMessage[0] : errorMessage);
     } finally {
       setIsAuthenticating(false);
     }

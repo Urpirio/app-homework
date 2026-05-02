@@ -3,31 +3,55 @@ import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   ScrollView, 
   StyleSheet, 
   Text, 
   View, 
   Dimensions, 
-  Pressable 
+  Pressable,
+  ActivityIndicator 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ConfirmModal } from '@/components/shared/ConfirmModal';
+import * as SecureStore from 'expo-secure-store';
+import api from '@/utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ProfileScreen() {
   const { theme } = useTheme();
-  const [logoutVisible, setLogoutVisible] = React.useState(false);
+  const [logoutVisible, setLogoutVisible] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProfile = async () => {
+    try {
+      const response = await api.get('/auth/profile');
+      setUser(response.data);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await SecureStore.deleteItemAsync('userToken');
+      router.replace('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;
-
-  const handleLogout = () => {
-    // Simular logout
-    router.replace('/login');
-  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -44,17 +68,29 @@ export default function ProfileScreen() {
               <View style={{ width: 40 }} />
             </View>
 
-            <Animated.View entering={FadeInDown.duration(800)} style={styles.profileSection}>
-              <View style={[styles.avatarContainer, { backgroundColor: theme.colors.primaryLight }]}>
-                <Text style={[styles.avatarText, { color: theme.colors.primary }]}>JD</Text>
-                <View style={[styles.onlineIndicator, { backgroundColor: theme.colors.success }]} />
-              </View>
-              <Text style={[styles.userName, { color: theme.colors.text }]}>John Doe</Text>
-              <Text style={[styles.userEmail, { color: theme.colors.textSecondary }]}>john.doe@example.com</Text>
-              <View style={[styles.roleBadge, { backgroundColor: theme.colors.card }]}>
-                <Text style={[styles.roleText, { color: theme.colors.primary }]}>Project Manager</Text>
-              </View>
-            </Animated.View>
+            {loading ? (
+              <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
+            ) : (
+              <Animated.View entering={FadeInDown.duration(800)} style={styles.profileSection}>
+                <View style={[styles.avatarContainer, { backgroundColor: theme.colors.primaryLight }]}>
+                  <Text style={[styles.avatarText, { color: theme.colors.primary }]}>
+                    {user?.fullName?.charAt(0) || 'U'}
+                  </Text>
+                  <View style={[styles.onlineIndicator, { backgroundColor: theme.colors.success }]} />
+                </View>
+                <Text style={[styles.userName, { color: theme.colors.text }]}>
+                  {user?.fullName || 'Usuario'}
+                </Text>
+                <Text style={[styles.userEmail, { color: theme.colors.textSecondary }]}>
+                  {user?.email || 'email@example.com'}
+                </Text>
+                <View style={[styles.roleBadge, { backgroundColor: theme.colors.card }]}>
+                  <Text style={[styles.roleText, { color: theme.colors.primary }]}>
+                    {user?.role || 'Miembro'}
+                  </Text>
+                </View>
+              </Animated.View>
+            )}
 
             <Animated.View entering={FadeInDown.delay(200)} style={styles.statsRow}>
               <StatCard label="Proyectos" value="12" icon="folder-outline" color={theme.colors.primary} />

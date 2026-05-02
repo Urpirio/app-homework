@@ -5,7 +5,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { Project } from '@/types/project';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import api from '@/utils/api';
+import { ActivityIndicator, Alert } from 'react-native';
 import { 
   FlatList, 
   StyleSheet, 
@@ -33,14 +35,35 @@ export default function ProjectListScreen() {
   
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-  // Projects list state (Mocked)
-  const [projects, setProjects] = useState<Project[]>([
-    { id: '1', name: 'Rediseño de App Móvil', description: 'Renovación completa de la UI/UX', progress: 75, tasksCount: 20, completedTasks: 15, lastAccessed: '2024-05-01', color: '#007AFF' },
-    { id: '2', name: 'Dashboard Administrativo', description: 'Panel de control para gestión de datos', progress: 40, tasksCount: 10, completedTasks: 4, lastAccessed: '2024-04-30', color: '#5856D6' },
-    { id: '3', name: 'Campaña de Marketing', description: 'Estrategia para el Q3', progress: 10, tasksCount: 15, completedTasks: 1, lastAccessed: '2024-04-28', color: '#FF9500' },
-    { id: '4', name: 'E-commerce Backend', description: 'API para tienda en línea', progress: 90, tasksCount: 50, completedTasks: 45, lastAccessed: '2024-04-25', color: '#34C759' },
-    { id: '5', name: 'Research de Mercado', description: 'Análisis de competencia', progress: 25, tasksCount: 8, completedTasks: 2, lastAccessed: '2024-04-20', color: '#FF2D55' },
-  ]);
+  // Projects list state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProjects = async () => {
+    try {
+      const response = await api.get('/projects');
+      const mapped = response.data.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description || '',
+        progress: 0,
+        tasksCount: p._count?.tasks || 0,
+        completedTasks: 0,
+        lastAccessed: new Date(p.updatedAt).toLocaleDateString(),
+        color: p.color || theme.colors.primary,
+      }));
+      setProjects(mapped);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      Alert.alert('Error', 'No se pudieron cargar los proyectos.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, []);
 
   const filteredProjects = projects.filter(p => 
     p.name.toLowerCase().includes(search.toLowerCase())
@@ -48,23 +71,23 @@ export default function ProjectListScreen() {
 
   const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;
 
-  const handleSaveProject = (data: any) => {
-    if (selectedProject) {
-      // Edit
-      setProjects(projects.map(p => p.id === selectedProject.id ? { ...p, ...data } : p));
-    } else {
-      // Add
-      const newProject: Project = {
-        id: Math.random().toString(),
-        progress: 0,
-        tasksCount: 0,
-        completedTasks: 0,
-        lastAccessed: new Date().toISOString(),
-        ...data
-      };
-      setProjects([newProject, ...projects]);
+  const handleSaveProject = async (data: any) => {
+    try {
+      if (selectedProject) {
+        // Edit
+        const response = await api.patch(`/projects/${selectedProject.id}`, data);
+        setProjects(projects.map(p => p.id === selectedProject.id ? { ...p, ...response.data } : p));
+      } else {
+        // Add
+        const response = await api.post('/projects', data);
+        setProjects([response.data, ...projects]);
+      }
+      setProjectModalVisible(false);
+      setSelectedProject(null);
+    } catch (error) {
+      console.error('Error saving project:', error);
+      Alert.alert('Error', 'No se pudo guardar el proyecto.');
     }
-    setSelectedProject(null);
   };
 
   const handleLongPress = (project: Project) => {
@@ -72,10 +95,17 @@ export default function ProjectListScreen() {
     setActionsVisible(true);
   };
 
-  const handleDeleteConfirmed = () => {
+  const handleDeleteConfirmed = async () => {
     if (selectedProject) {
-      setProjects(projects.filter(p => p.id !== selectedProject.id));
-      setSelectedProject(null);
+      try {
+        await api.delete(`/projects/${selectedProject.id}`);
+        setProjects(projects.filter(p => p.id !== selectedProject.id));
+        setSelectedProject(null);
+        setConfirmDeleteVisible(false);
+      } catch (error) {
+        console.error('Error deleting project:', error);
+        Alert.alert('Error', 'No se pudo eliminar el proyecto.');
+      }
     }
   };
 
@@ -116,19 +146,28 @@ export default function ProjectListScreen() {
             />
           </View>
 
-          <FlatList
-            data={filteredProjects}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item, index }) => (
-              <ProjectCard 
-                project={item} 
-                index={index} 
-                onLongPress={() => handleLongPress(item)}
-              />
-            )}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
-          />
+          {loading ? (
+            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
+          ) : (
+            <FlatList
+              data={filteredProjects}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item, index }) => (
+                <ProjectCard 
+                  project={item} 
+                  index={index} 
+                  onLongPress={() => handleLongPress(item)}
+                />
+              )}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                <Text style={{ textAlign: 'center', marginTop: 40, color: theme.colors.textSecondary, fontStyle: 'italic' }}>
+                  No se encontraron proyectos.
+                </Text>
+              }
+            />
+          )}
         </View>
 
         {/* Modales */}

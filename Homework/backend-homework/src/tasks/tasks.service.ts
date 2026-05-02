@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, Task, NotificationType } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '@prisma/client';
 
 @Injectable()
 export class TasksService {
@@ -10,90 +10,61 @@ export class TasksService {
     private notificationsService: NotificationsService,
   ) {}
 
-  async create(userId: string, data: Prisma.TaskUncheckedCreateInput): Promise<Task> {
-    const project = await this.prisma.project.findUnique({
-      where: { id: data.projectId },
-    });
-
-    if (!project) {
-      throw new NotFoundException(`Project not found`);
-    }
-
-    if (project.userId !== userId) {
-      throw new ForbiddenException(`You do not own this project`);
-    }
-
+  async create(userId: string, data: any) {
     const task = await this.prisma.task.create({
       data,
+      include: { project: true },
     });
 
-    await this.notificationsService.create(userId, {
+    await this.notificationsService.create({
       title: 'Nueva Tarea',
-      message: `Has creado la tarea "${task.title}".`,
+      message: `Se ha creado la tarea "${task.title}" en el proyecto "${task.project.name}"`,
       type: NotificationType.TASK,
+      userId,
     });
 
     return task;
   }
 
-  async findAllByProject(projectId: string, userId: string): Promise<Task[]> {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-    });
-
-    if (!project) {
-      throw new NotFoundException(`Project not found`);
-    }
-
-    if (project.userId !== userId) {
-      throw new ForbiddenException(`You do not own this project`);
-    }
-
+  async findAllByProject(projectId: string, userId: string) {
     return this.prisma.task.findMany({
-      where: { projectId },
+      where: { 
+        projectId,
+        project: { userId }
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findOne(id: string, userId: string): Promise<Task> {
-    const task = await this.prisma.task.findUnique({
-      where: { id },
-      include: { project: true },
+  async findOne(id: string, userId: string) {
+    return this.prisma.task.findFirst({
+      where: { 
+        id,
+        project: { userId }
+      },
     });
-
-    if (!task) {
-      throw new NotFoundException(`Task not found`);
-    }
-
-    if (task.project.userId !== userId) {
-      throw new ForbiddenException(`You do not own the project for this task`);
-    }
-
-    return task;
   }
 
-  async update(id: string, userId: string, data: Prisma.TaskUpdateInput): Promise<Task> {
-    await this.findOne(id, userId);
-
+  async update(id: string, userId: string, data: any) {
     const task = await this.prisma.task.update({
       where: { id },
       data,
+      include: { project: true },
     });
 
-    if (data.status) {
-      await this.notificationsService.create(userId, {
-        title: 'Tarea Actualizada',
-        message: `El estado de "${task.title}" cambió a ${task.status}.`,
+    if (data.status === 'DONE') {
+      await this.notificationsService.create({
+        title: 'Tarea Completada',
+        message: `Has completado la tarea "${task.title}"`,
         type: NotificationType.TASK,
+        userId,
       });
     }
 
     return task;
   }
 
-  async remove(id: string, userId: string): Promise<Task> {
-    await this.findOne(id, userId);
-
+  async remove(id: string, userId: string) {
     return this.prisma.task.delete({
       where: { id },
     });

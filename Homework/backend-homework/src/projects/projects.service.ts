@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, Project, NotificationType } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '@prisma/client';
 
 @Injectable()
 export class ProjectsService {
@@ -10,24 +10,25 @@ export class ProjectsService {
     private notificationsService: NotificationsService,
   ) {}
 
-  async create(userId: string, data: Omit<Prisma.ProjectCreateInput, 'user'>): Promise<Project> {
+  async create(userId: string, data: any) {
     const project = await this.prisma.project.create({
       data: {
         ...data,
-        user: { connect: { id: userId } },
+        userId,
       },
     });
 
-    await this.notificationsService.create(userId, {
+    await this.notificationsService.create({
       title: 'Nuevo Proyecto',
-      message: `Has creado el proyecto "${project.name}".`,
+      message: `Has creado el proyecto "${project.name}"`,
       type: NotificationType.PROJECT,
+      userId,
     });
 
     return project;
   }
 
-  async findAllForUser(userId: string): Promise<Project[]> {
+  async findAllForUser(userId: string) {
     return this.prisma.project.findMany({
       where: { userId },
       include: {
@@ -39,39 +40,23 @@ export class ProjectsService {
     });
   }
 
-  async findOne(id: string, userId: string): Promise<Project> {
-    const project = await this.prisma.project.findFirst({
+  async findOne(id: string, userId: string) {
+    return this.prisma.project.findFirst({
       where: { id, userId },
-      include: {
-        tasks: {
-          orderBy: { createdAt: 'desc' },
-        },
-      },
+      include: { tasks: { orderBy: { createdAt: 'desc' } } },
     });
-
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${id} not found`);
-    }
-
-    return project;
   }
 
-  async update(id: string, userId: string, data: Prisma.ProjectUpdateInput): Promise<Project> {
-    // Verify existence and ownership
-    await this.findOne(id, userId);
-
+  async update(id: string, userId: string, data: any) {
     return this.prisma.project.update({
-      where: { id },
+      where: { id, userId },
       data,
     });
   }
 
-  async remove(id: string, userId: string): Promise<Project> {
-    // Verify existence and ownership
-    await this.findOne(id, userId);
-
+  async remove(id: string, userId: string) {
     return this.prisma.project.delete({
-      where: { id },
+      where: { id, userId },
     });
   }
 }
