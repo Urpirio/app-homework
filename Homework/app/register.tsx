@@ -10,6 +10,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/utils/api';
+import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -26,7 +27,14 @@ export default function RegisterScreen() {
     } catch (error: any) {
       console.error('Registration error:', error.response?.data || error.message);
       const errorMessage = error.response?.data?.message || 'Error al crear la cuenta';
-      Alert.alert('Error', Array.isArray(errorMessage) ? errorMessage[0] : errorMessage);
+      const message = Array.isArray(errorMessage) ? errorMessage[0] : errorMessage;
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Error de registro',
+        text2: message,
+        position: 'top'
+      });
       throw error;
     }
   };

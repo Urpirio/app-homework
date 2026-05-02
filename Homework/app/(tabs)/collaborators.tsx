@@ -52,7 +52,7 @@ export default function CollaboratorsScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [invitationSent, setInvitationSent] = useState(false);
-  const { scannedCode, projectId } = useLocalSearchParams<{ scannedCode?: string; projectId?: string }>();
+  const { scannedCode, projectId, autoOpenAdd } = useLocalSearchParams<{ scannedCode?: string; projectId?: string; autoOpenAdd?: string }>();
   const [isFabOpen, setIsFabOpen] = useState(false);
   const fabAnim = useSharedValue(0);
 
@@ -155,8 +155,12 @@ export default function CollaboratorsScreen() {
         setIdentityCode(scannedCode);
         setIsAddModalVisible(true);
         handleSearch(scannedCode);
+      } else if (autoOpenAdd === 'true') {
+        setIsAddModalVisible(true);
+        // Limpiar el parámetro para que no se reabra al volver a enfocar
+        router.setParams({ autoOpenAdd: undefined });
       }
-    }, [scannedCode, projectId])
+    }, [scannedCode, projectId, autoOpenAdd])
   );
 
   const handleConfirmAdd = async () => {

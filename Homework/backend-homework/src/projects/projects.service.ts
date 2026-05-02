@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationType } from '@prisma/client';
+import { NotificationType, Role } from '@prisma/client';
 
 @Injectable()
 export class ProjectsService {
@@ -10,13 +10,14 @@ export class ProjectsService {
     private notificationsService: NotificationsService,
   ) {}
 
-  async create(userId: string, data: any) {
+  async create(user: any, data: any) {
     const project = await this.prisma.project.create({
       data: {
         name: data.name,
         description: data.description,
         color: data.color,
-        userId,
+        userId: user.userId,
+        institutionId: user.institutionId,
       },
     });
 
@@ -24,7 +25,7 @@ export class ProjectsService {
       title: 'Nuevo Proyecto',
       message: `Has creado el proyecto "${project.name}"`,
       type: NotificationType.PROJECT,
-      userId,
+      userId: user.userId,
     });
 
     return project;
@@ -108,18 +109,28 @@ export class ProjectsService {
       throw new Error('Proyecto no encontrado o no tienes permisos.');
     }
 
-    // Verificar que son colaboradores activos
-    const collaboration = await this.prisma.collaborator.findFirst({
-      where: {
-        status: 'ACTIVE',
-        OR: [
-          { requesterId: ownerId, addresseeId: memberId },
-          { requesterId: memberId, addresseeId: ownerId },
-        ],
-      },
-    });
-    if (!collaboration) {
-      throw new Error('Este usuario no es un colaborador activo.');
+    // Si es un proyecto institucional, permitir añadir a cualquier miembro de la misma institución
+    if (project.institutionId) {
+      const targetUser = await this.prisma.user.findFirst({
+        where: { id: memberId, institutionId: project.institutionId }
+      });
+      if (!targetUser) {
+        throw new Error('El usuario no pertenece a esta institución.');
+      }
+    } else {
+      // Si no es institucional, verificar colaboradores (lógica actual)
+      const collaboration = await this.prisma.collaborator.findFirst({
+        where: {
+          status: 'ACTIVE',
+          OR: [
+            { requesterId: ownerId, addresseeId: memberId },
+            { requesterId: memberId, addresseeId: ownerId },
+          ],
+        },
+      });
+      if (!collaboration) {
+        throw new Error('Este usuario no es un colaborador activo.');
+      }
     }
 
     // Crear la membresía

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationType } from '@prisma/client';
+import { NotificationType, TaskType } from '@prisma/client';
 
 @Injectable()
 export class TasksService {
@@ -20,6 +20,8 @@ export class TasksService {
         title: data.title,
         description: data.description,
         status: status,
+        type: data.type as TaskType,
+        maxGrade: data.maxGrade,
         projectId: data.projectId,
         dueDate: data.dueDate,
       },
@@ -76,6 +78,8 @@ export class TasksService {
         title: data.title,
         description: data.description,
         status: status,
+        type: data.type as TaskType,
+        maxGrade: data.maxGrade,
         dueDate: data.dueDate,
       },
       include: { project: true },

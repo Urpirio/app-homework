@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { BaseModal } from '../shared/BaseModal';
 import api from '@/utils/api';
+import { router } from 'expo-router';
 
 interface AddCollaboratorModalProps {
   visible: boolean;
@@ -28,6 +29,7 @@ export const AddCollaboratorModal = ({
 }: AddCollaboratorModalProps) => {
   const { theme } = useTheme();
   const [availableCollabs, setAvailableCollabs] = useState<any[]>([]);
+  const [hasAnyCollabs, setHasAnyCollabs] = useState(true);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -40,15 +42,20 @@ export const AddCollaboratorModal = ({
     try {
       setLoading(true);
       const res = await api.get('/collaborators');
+      const allCollabs = res.data;
+      setHasAnyCollabs(allCollabs.length > 0);
       
       // Filtrar solo los que están activos y NO están ya en el proyecto
-      const active = res.data
-        .filter((c: any) => c.status === 'ACTIVE')
-        .map((c: any) => ({
-          id: c.collaborator.id,
-          name: c.collaborator.fullName,
-          avatar: c.collaborator.avatarUrl,
-        }))
+      const active = allCollabs
+        .filter((c: any) => c.status === 'ACTIVE' || c.status === 'active')
+        .map((c: any) => {
+          const col = c.collaborator || c.user || c;
+          return {
+            id: col.id,
+            name: col.fullName || col.name,
+            avatar: col.avatarUrl,
+          };
+        })
         .filter((col: any) => !currentCollaborators.some(existing => existing.id === col.id));
 
       setAvailableCollabs(active);
@@ -96,10 +103,32 @@ export const AddCollaboratorModal = ({
         />
       ) : (
         <View style={styles.emptyContainer}>
-          <Ionicons name="people-outline" size={48} color={theme.colors.textSecondary} />
+          <Ionicons 
+            name={hasAnyCollabs ? "people-outline" : "person-add-outline"} 
+            size={48} 
+            color={theme.colors.textSecondary} 
+          />
           <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-            No hay colaboradores disponibles para añadir.
+            {hasAnyCollabs 
+              ? "Todos tus colaboradores ya están en este proyecto."
+              : "No tienes colaboradores agregados todavía."}
           </Text>
+          
+          <TouchableOpacity 
+            style={[styles.redirectBtn, { backgroundColor: theme.colors.primary }]}
+            onPress={() => {
+              onClose();
+              router.push({
+                pathname: '/(tabs)/collaborators',
+                params: { autoOpenAdd: 'true' }
+              });
+            }}
+          >
+            <Text style={styles.redirectBtnText}>
+              {hasAnyCollabs ? "Gestionar Colaboradores" : "Buscar Colaborador"}
+            </Text>
+            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+          </TouchableOpacity>
         </View>
       )}
     </BaseModal>
@@ -160,6 +189,20 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  redirectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  redirectBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   }
 });

@@ -3,6 +3,7 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { EmailService } from '../email/email.service';
 import * as bcrypt from 'bcrypt';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -32,7 +33,12 @@ export class AuthService {
       identityCode = await this.usersService.generateIdentityCode(user.id);
     }
 
-    const payload = { email: user.email, sub: user.id, role: user.role };
+    const payload = { 
+      email: user.email, 
+      sub: user.id, 
+      role: user.role,
+      institutionId: user.institutionId 
+    };
     return {
       access_token: this.jwtService.sign(payload),
       user: {
@@ -42,6 +48,7 @@ export class AuthService {
         role: user.role,
         avatarUrl: user.avatarUrl,
         identityCode,
+        institutionId: user.institutionId,
       }
     };
   }
@@ -67,6 +74,7 @@ export class AuthService {
       verificationCode,
       verificationCodeExpires: expires,
       isVerified: false,
+      role: Role.STUDENT, // Por defecto al registrarse libremente
     });
 
     // Enviar correo real con Resend
@@ -76,6 +84,40 @@ export class AuthService {
     const identityCode = await this.usersService.generateIdentityCode(newUser.id);
 
     const { password, ...result } = newUser;
+    return { ...result, identityCode };
+  }
+
+  async registerInstitutionalUser(data: any, adminUser: any) {
+    if (adminUser.role !== Role.SCHOOL_ADMIN && adminUser.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('No tienes permisos para crear usuarios institucionales');
+    }
+
+    const institutionId = adminUser.institutionId || data.institutionId;
+    if (!institutionId) {
+      throw new BadRequestException('Se requiere un ID de institución');
+    }
+
+    const existingUser = await this.usersService.findOne(data.email);
+    if (existingUser) {
+      throw new ConflictException('Ya existe un usuario con este correo');
+    }
+
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash(data.password || 'temp1234', salt); // Contraseña temporal por defecto
+
+    const newUser = await this.usersService.create({
+      email: data.email,
+      fullName: data.fullName,
+      password: hashedPassword,
+      role: data.role as Role,
+      institutionId,
+      isVerified: true, // Usuarios creados por admin se marcan como verificados
+    });
+
+    // Generar código de identidad único
+    const identityCode = await this.usersService.generateIdentityCode(newUser.id);
+
+    const { password: _, ...result } = newUser;
     return { ...result, identityCode };
   }
 
@@ -172,7 +214,7 @@ export class AuthService {
     const updatedUser = await this.usersService.update(userId, {
       fullName: data.fullName,
       email: data.email,
-      role: data.role,
+      role: data.role as Role,
       avatarUrl: data.avatarUrl,
     });
     const { password, ...result } = updatedUser;

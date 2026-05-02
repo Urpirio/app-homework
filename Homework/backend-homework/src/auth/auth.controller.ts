@@ -1,6 +1,9 @@
-import { Controller, Post, Body, Get, Patch, UseGuards, Request, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Patch, UseGuards, Request, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { RolesGuard } from './roles.guard';
+import { Roles } from './roles.decorator';
+import { Role } from '@prisma/client';
 
 @Controller('auth')
 export class AuthController {
@@ -9,6 +12,13 @@ export class AuthController {
   @Post('register')
   async register(@Body() body: any) {
     return this.authService.register(body);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SCHOOL_ADMIN, Role.SUPER_ADMIN)
+  @Post('institutional-user')
+  async registerInstitutional(@Request() req: any, @Body() body: any) {
+    return this.authService.registerInstitutionalUser(body, req.user);
   }
 
   @Post('login')

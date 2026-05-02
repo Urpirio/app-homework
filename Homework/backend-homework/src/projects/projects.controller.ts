@@ -10,7 +10,7 @@ export class ProjectsController {
 
   @Post()
   create(@Request() req: any, @Body() createProjectDto: Omit<Prisma.ProjectCreateInput, 'user'>) {
-    return this.projectsService.create(req.user.userId, createProjectDto);
+    return this.projectsService.create(req.user, createProjectDto);
   }
 
   @Get()

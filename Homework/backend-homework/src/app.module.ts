@@ -14,6 +14,8 @@ import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { EmailModule } from './email/email.module';
+import { InstitutionsModule } from './institutions/institutions.module';
+import { SubmissionsModule } from './submissions/submissions.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { EmailModule } from './email/email.module';
     MessagesModule,
     UploadsModule,
     EmailModule,
+    InstitutionsModule,
+    SubmissionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

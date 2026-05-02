@@ -39,8 +39,8 @@ export default function RootLayout() {
       <ErrorToast
         {...props}
         style={{ 
-          borderLeftColor: theme.colors.error,
-          backgroundColor: theme.colors.card,
+          borderLeftColor: '#D32F2F', // Darker red for the border
+          backgroundColor: theme.colors.error,
           borderRadius: 16,
           height: 70,
           borderLeftWidth: 6,
@@ -50,11 +50,11 @@ export default function RootLayout() {
         text1Style={{
           fontSize: 16,
           fontWeight: '800',
-          color: theme.colors.text
+          color: '#FFFFFF'
         }}
         text2Style={{
           fontSize: 13,
-          color: theme.colors.textSecondary,
+          color: 'rgba(255, 255, 255, 0.8)',
           fontWeight: '500'
         }}
       />

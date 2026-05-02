@@ -2,7 +2,9 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  status: 'todo' | 'in-progress' | 'done';
+  status: 'TODO' | 'IN_PROGRESS' | 'DONE';
+  type?: 'ASSIGNMENT' | 'EXAM' | 'NOTE' | 'QUIZ';
+  maxGrade?: number;
   dueDate?: string;
 }
 

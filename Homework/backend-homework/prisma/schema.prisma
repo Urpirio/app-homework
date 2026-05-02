@@ -7,19 +7,43 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  SUPER_ADMIN
+  SCHOOL_ADMIN
+  TEACHER
+  STUDENT
+  SUPPORT
+}
+
+model Institution {
+  id        String    @id @default(uuid())
+  name      String
+  logoUrl   String?
+  address   String?
+  users     User[]
+  projects  Project[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
 model User {
   id               String         @id @default(uuid())
   email            String         @unique
   password         String
   fullName         String
-  role             String?
+  role             Role           @default(STUDENT)
   avatarUrl        String?
   identityCode     String?        @unique
   isVerified       Boolean        @default(false)
   verificationCode String?
   verificationCodeExpires DateTime?
+  
+  institutionId    String?
+  institution      Institution?   @relation(fields: [institutionId], references: [id])
+  
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
+  
   projects         Project[]
   notifications    Notification[]
   sentRequests     Collaborator[] @relation("SentRequests")
@@ -27,37 +51,80 @@ model User {
   sentMessages     Message[]      @relation("SentMessages")
   receivedMessages Message[]      @relation("ReceivedMessages")
   projectMemberships ProjectMember[]
+  submissions      Submission[]
 }
 
 model Project {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  color       String?
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tasks       Task[]
-  members     ProjectMember[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
+  color         String?
+  
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  tasks         Task[]
+  members       ProjectMember[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Task {
-  id          String     @id @default(uuid())
+  id          String       @id @default(uuid())
   title       String
   description String?
-  status      TaskStatus @default(TODO)
+  status      TaskStatus   @default(TODO)
+  type        TaskType     @default(ASSIGNMENT)
+  maxGrade    Float?       @default(100)
+  
   projectId   String
-  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  submissions Submission[]
   dueDate     DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+enum TaskType {
+  ASSIGNMENT
+  EXAM
+  NOTE
+  QUIZ
 }
 
 enum TaskStatus {
   TODO
   IN_PROGRESS
   DONE
+}
+
+model Submission {
+  id        String           @id @default(uuid())
+  taskId    String
+  task      Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  fileUrl   String?
+  content   String?          @db.Text
+  grade     Float?
+  feedback  String?
+  status    SubmissionStatus @default(SUBMITTED)
+  
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([taskId, studentId])
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  GRADED
+  RETURNED
 }
 
 model Notification {
@@ -77,6 +144,7 @@ enum NotificationType {
   ALERT
   COLLABORATOR_REQUEST
   COLLABORATOR_ACCEPTED
+  SUBMISSION_GRADED
 }
 
 model Collaborator {

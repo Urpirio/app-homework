@@ -15,6 +15,7 @@ import { BiometricButton } from './BiometricButton';
 import * as SecureStore from 'expo-secure-store';
 import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import Toast from 'react-native-toast-message';
 
 /**
  * Props for the LoginForm component
@@ -85,8 +86,15 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
       router.replace('/home');
     } catch (error: any) {
       console.error('Login error:', error);
-      setAuthError(error.message || 'Correo o contraseña incorrectos');
+      const message = error.message || 'Correo o contraseña incorrectos';
+      setAuthError(message);
       setLoading(false);
+      Toast.show({
+        type: 'error',
+        text1: 'Error de inicio de sesión',
+        text2: message,
+        position: 'top'
+      });
     }
   };
 

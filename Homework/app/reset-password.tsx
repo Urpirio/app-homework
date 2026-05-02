@@ -19,6 +19,7 @@ import { ErrorMessage } from '@/components/login/ErrorMessage';
 import { validatePassword } from '@/utils/validation';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import api from '@/utils/api';
+import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -66,7 +67,14 @@ export default function ResetPasswordScreen() {
     } catch (error: any) {
       setIsLoading(false);
       const message = error.response?.data?.message || 'No se pudo restablecer la contraseña';
-      Alert.alert('Error', Array.isArray(message) ? message[0] : message);
+      const errorMessage = Array.isArray(message) ? message[0] : message;
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: errorMessage,
+        position: 'top'
+      });
     }
   };
 

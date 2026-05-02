@@ -3,9 +3,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { BlurView } from 'expo-blur';
 import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import api from '@/utils/api';
+import { UserRole } from '@/types/auth';
 
 export default function TabLayout() {
   const { theme } = useTheme();
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchRole = async () => {
+      try {
+        const res = await api.get('/auth/profile');
+        setRole(res.data.role);
+      } catch (error) {
+        console.error('Error fetching role for tabs:', error);
+      }
+    };
+    fetchRole();
+  }, []);
 
   return (
     <Tabs
@@ -60,6 +76,21 @@ export default function TabLayout() {
           ),
         }}
       />
+      {(role === UserRole.SCHOOL_ADMIN || role === UserRole.SUPER_ADMIN) && (
+        <Tabs.Screen
+          name="admin/index"
+          options={{
+            title: 'Admin',
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons 
+                name={focused ? 'stats-chart' : 'stats-chart-outline'} 
+                size={size} 
+                color={color} 
+              />
+            ),
+          }}
+        />
+      )}
     </Tabs>
   );
 }

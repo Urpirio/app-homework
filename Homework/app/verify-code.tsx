@@ -95,7 +95,14 @@ export default function VerifyCodeScreen() {
     } catch (error: any) {
       setIsLoading(false);
       const message = error.response?.data?.message || 'El código ingresado es incorrecto';
-      Alert.alert('Error', Array.isArray(message) ? message[0] : message);
+      const errorMessage = Array.isArray(message) ? message[0] : message;
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Código inválido',
+        text2: errorMessage,
+        position: 'top'
+      });
     }
   };
 

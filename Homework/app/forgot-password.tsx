@@ -10,6 +10,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/utils/api';
+import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -27,7 +28,14 @@ export default function ForgotPasswordScreen() {
     } catch (error: any) {
       console.error('Reset error:', error);
       const message = error.response?.data?.message || 'Error al enviar el código de recuperación';
-      Alert.alert('Error', Array.isArray(message) ? message[0] : message);
+      const errorMessage = Array.isArray(message) ? message[0] : message;
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: errorMessage,
+        position: 'top'
+      });
     }
   };
 

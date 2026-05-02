@@ -24,6 +24,25 @@ export interface LoginCredentials {
   password: string;
 }
 
+export enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  SCHOOL_ADMIN = 'SCHOOL_ADMIN',
+  TEACHER = 'TEACHER',
+  STUDENT = 'STUDENT',
+  SUPPORT = 'SUPPORT'
+}
+
+export interface User {
+  id: string;
+  email: string;
+  fullName: string;
+  role: UserRole;
+  avatarUrl?: string;
+  identityCode?: string;
+  institutionId?: string;
+  isVerified: boolean;
+}
+
 /**
  * FormState
  * 
