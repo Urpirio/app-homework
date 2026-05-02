@@ -74,12 +74,21 @@ export class AuthService {
   }
 
   async changePassword(userId: string, data: any) {
+    console.log('Changing password for user:', userId);
     const user = await this.usersService.findById(userId);
     if (!user) {
+      console.log('User not found in DB:', userId);
       throw new UnauthorizedException('Usuario no encontrado');
     }
 
-    const isMatch = await bcrypt.compare(data.currentPassword, user.password);
+    console.log('Validating current password...');
+    const trimmedPass = data.currentPassword?.trim();
+    console.log('Input password length:', trimmedPass?.length);
+    console.log('DB password length:', user.password?.length);
+    
+    const isMatch = await bcrypt.compare(trimmedPass, user.password);
+    console.log('Password match result:', isMatch);
+    
     if (!isMatch) {
       throw new UnauthorizedException('La contraseña actual es incorrecta');
     }

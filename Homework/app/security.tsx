@@ -1,4 +1,4 @@
-import { BackgroundShapes } from '@/components/login/BackgroundShapes';
+ import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { AnimatedButton } from '@/components/login/AnimatedButton';
 import { AnimatedInput } from '@/components/login/AnimatedInput';
 import { ThemedView } from '@/components/shared/ThemedView';
