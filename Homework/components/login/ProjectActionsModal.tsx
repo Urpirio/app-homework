@@ -9,9 +9,16 @@ interface ProjectActionsModalProps {
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onViewCollaborators: () => void;
 }
 
-export const ProjectActionsModal = ({ visible, onClose, onEdit, onDelete }: ProjectActionsModalProps) => {
+export const ProjectActionsModal = ({ 
+  visible, 
+  onClose, 
+  onEdit, 
+  onDelete,
+  onViewCollaborators 
+}: ProjectActionsModalProps) => {
   const { theme } = useTheme();
 
   return (
@@ -19,6 +26,12 @@ export const ProjectActionsModal = ({ visible, onClose, onEdit, onDelete }: Proj
       <Text style={[styles.title, { color: theme.colors.text }]}>Opciones de Proyecto</Text>
       
       <View style={styles.optionsContainer}>
+        <ActionButton 
+          icon="people-outline" 
+          label="Colaboradores" 
+          color={theme.colors.text}
+          onPress={() => { onViewCollaborators(); onClose(); }} 
+        />
         <ActionButton 
           icon="create-outline" 
           label="Editar Proyecto" 

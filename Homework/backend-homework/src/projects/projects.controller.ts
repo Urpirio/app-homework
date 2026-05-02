@@ -32,4 +32,29 @@ export class ProjectsController {
   remove(@Request() req: any, @Param('id') id: string) {
     return this.projectsService.remove(id, req.user.userId);
   }
+
+  // ====== Miembros del Proyecto ======
+
+  @Post(':id/members')
+  addMember(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: { memberId: string },
+  ) {
+    return this.projectsService.addMember(id, req.user.userId, body.memberId);
+  }
+
+  @Get(':id/members')
+  getMembers(@Request() req: any, @Param('id') id: string) {
+    return this.projectsService.getMembers(id, req.user.userId);
+  }
+
+  @Delete(':id/members/:memberId')
+  removeMember(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+  ) {
+    return this.projectsService.removeMember(id, req.user.userId, memberId);
+  }
 }

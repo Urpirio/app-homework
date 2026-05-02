@@ -8,7 +8,12 @@ import {
   Dimensions,
   Image,
   ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -24,10 +29,18 @@ export default function SharedFilesScreen() {
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
   const router = useRouter();
   const { theme } = useTheme();
+  const API_URL = 'https://app-homework-production.up.railway.app';
+  
+  const getFullUrl = (path: string) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  };
   const [activeTab, setActiveTab] = useState<'images' | 'docs'>('images');
   const [sharedImages, setSharedImages] = useState<any[]>([]);
   const [sharedDocs, setSharedDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
 
   const fetchFiles = async () => {
     try {
@@ -50,6 +63,34 @@ export default function SharedFilesScreen() {
       fetchFiles();
     }, [id])
   );
+
+  const handleOpenFile = async (fileUrl: string, fileName: string) => {
+    try {
+      setLoading(true);
+      // Definir la ruta local en el cache
+      const fileUri = FileSystem.cacheDirectory + fileName;
+      
+      // Descargar el archivo
+      const downloadRes = await FileSystem.downloadAsync(fileUrl, fileUri);
+      
+      if (downloadRes.status !== 200) {
+        throw new Error('Error al descargar el archivo');
+      }
+
+      // Verificar si se puede compartir/abrir
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(downloadRes.uri);
+      } else {
+        Alert.alert('Error', 'No hay aplicaciones disponibles para abrir este archivo.');
+      }
+    } catch (error) {
+      console.error('Error opening file:', error);
+      Alert.alert('Error', 'No se pudo abrir el archivo.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
@@ -98,7 +139,11 @@ export default function SharedFilesScreen() {
                 entering={FadeIn.delay(index * 50)}
                 style={[styles.imageItem, { backgroundColor: theme.colors.border }]} 
               >
-                {item.fileUrl && <Image source={{ uri: item.fileUrl }} style={styles.imageItem} />}
+                {item.fileUrl && (
+                  <TouchableOpacity onPress={() => setFullScreenImage(getFullUrl(item.fileUrl))}>
+                    <Image source={{ uri: getFullUrl(item.fileUrl) }} style={styles.imageItem} />
+                  </TouchableOpacity>
+                )}
               </Animated.View>
             )}
             columnWrapperStyle={styles.imageRow}
@@ -114,7 +159,10 @@ export default function SharedFilesScreen() {
             keyExtractor={item => item.id}
             renderItem={({ item, index }) => (
               <Animated.View entering={FadeIn.delay(index * 50)}>
-                <TouchableOpacity style={[styles.docItem, { backgroundColor: theme.colors.card }]}>
+                <TouchableOpacity 
+                  onPress={() => handleOpenFile(getFullUrl(item.fileUrl), item.fileName)}
+                  style={[styles.docItem, { backgroundColor: theme.colors.card }]}
+                >
                   <View style={[styles.docIcon, { backgroundColor: theme.colors.primaryLight }]}>
                     <Ionicons name="document-text" size={24} color={theme.colors.primary} />
                   </View>
@@ -137,6 +185,30 @@ export default function SharedFilesScreen() {
           />
         )}
       </View>
+
+      {/* Full Screen Image Modal */}
+      <Modal
+        visible={fullScreenImage !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFullScreenImage(null)}
+      >
+        <View style={styles.fullScreenImageContainer}>
+          <TouchableOpacity 
+            style={styles.closeFullScreenBtn} 
+            onPress={() => setFullScreenImage(null)}
+          >
+            <Ionicons name="close" size={30} color="#FFFFFF" />
+          </TouchableOpacity>
+          {fullScreenImage && (
+            <Image 
+              source={{ uri: fullScreenImage }} 
+              style={styles.fullScreenImage} 
+              resizeMode="contain" 
+            />
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -199,4 +271,23 @@ const styles = StyleSheet.create({
   docName: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
   docMeta: { fontSize: 12 },
   emptyText: { textAlign: 'center', marginTop: 40, fontSize: 14 },
+  fullScreenImageContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
+    width: SCREEN_WIDTH,
+    height: '100%',
+  },
+  closeFullScreenBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 20,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+  },
 });

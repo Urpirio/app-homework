@@ -54,6 +54,14 @@ export default function ChatScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const API_URL = 'https://app-homework-production.up.railway.app';
+
+  const getFullUrl = (path: string) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    if (path.startsWith('file://')) return path; // Para adjuntos locales antes de subir
+    return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  };
   
   const [message, setMessage] = useState('');
   const [isModalVisible, setModalVisible] = useState(false);
@@ -83,7 +91,7 @@ export default function ChatScreen() {
           attachment: m.attachment ? {
             type: m.attachment.mimeType?.startsWith('image/') ? 'image' : 
                   m.attachment.mimeType?.startsWith('video/') ? 'video' : 'document',
-            uri: m.attachment.fileUrl,
+            uri: getFullUrl(m.attachment.fileUrl),
             name: m.attachment.fileName,
             mimeType: m.attachment.mimeType,
           } : undefined,
@@ -136,7 +144,7 @@ export default function ChatScreen() {
         attachment: m.attachment ? {
           type: m.attachment.mimeType?.startsWith('image/') ? 'image' :
                 m.attachment.mimeType?.startsWith('video/') ? 'video' : 'document',
-          uri: m.attachment.fileUrl,
+          uri: getFullUrl(m.attachment.fileUrl),
           name: m.attachment.fileName,
           mimeType: m.attachment.mimeType,
         } : undefined,
@@ -312,7 +320,7 @@ export default function ChatScreen() {
                   }}
                   activeOpacity={0.8}
                 >
-                  <Image source={{ uri: item.attachment.uri }} style={styles.messageImage} />
+                  <Image source={{ uri: getFullUrl(item.attachment.uri) }} style={styles.messageImage} />
                   {item.attachment.type === 'video' && (
                     <View style={styles.videoIconOverlay}>
                       <Ionicons name="play-circle" size={32} color="#FFFFFF" />

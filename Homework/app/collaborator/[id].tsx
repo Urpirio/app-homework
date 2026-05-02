@@ -23,6 +23,13 @@ export default function CollaboratorProfile() {
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
   const router = useRouter();
   const { theme } = useTheme();
+  const API_URL = 'https://app-homework-production.up.railway.app';
+
+  const getFullUrl = (path: string) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  };
 
   const [commonProjects, setCommonProjects] = useState<any[]>([]);
   const [sharedFiles, setSharedFiles] = useState<any[]>([]);
@@ -108,25 +115,31 @@ export default function CollaboratorProfile() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Proyectos en común</Text>
           <View style={styles.projectsList}>
-            {commonProjects.map((project, index) => (
-              <Animated.View 
-                key={project.id}
-                entering={FadeInDown.delay(index * 150).duration(500)}
-                style={[styles.projectCard, { backgroundColor: theme.colors.card }]}
-              >
-                <View style={[styles.projectIndicator, { backgroundColor: project.color }]} />
-                <View style={styles.projectContent}>
-                  <Text style={[styles.projectTitle, { color: theme.colors.text }]}>{project.name}</Text>
-                  <View style={styles.statusRow}>
-                    <View style={[styles.statusDot, { backgroundColor: project.color }]} />
-                    <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>{project.status}</Text>
+            {commonProjects.length > 0 ? (
+              commonProjects.map((project, index) => (
+                <Animated.View 
+                  key={project.id}
+                  entering={FadeInDown.delay(index * 150).duration(500)}
+                  style={[styles.projectCard, { backgroundColor: theme.colors.card }]}
+                >
+                  <View style={[styles.projectIndicator, { backgroundColor: project.color }]} />
+                  <View style={styles.projectContent}>
+                    <Text style={[styles.projectTitle, { color: theme.colors.text }]}>{project.name}</Text>
+                    <View style={styles.statusRow}>
+                      <View style={[styles.statusDot, { backgroundColor: project.color }]} />
+                      <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>{project.status}</Text>
+                    </View>
                   </View>
-                </View>
-                <TouchableOpacity style={styles.viewProjectBtn}>
-                  <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              </Animated.View>
-            ))}
+                  <TouchableOpacity style={styles.viewProjectBtn}>
+                    <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+                  </TouchableOpacity>
+                </Animated.View>
+              ))
+            ) : (
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                Aún no tienen proyectos asignados en común.
+              </Text>
+            )}
           </View>
         </View>
 
@@ -147,15 +160,15 @@ export default function CollaboratorProfile() {
           <View style={styles.sharedFilesContent}>
             {/* Images Grid Snippet */}
             <View style={styles.imagesRow}>
-              {sharedFiles.filter((f: any) => f.mimeType?.startsWith('image/')).slice(0, 3).map((file: any, index: number) => (
-                <Image key={file.id || index} source={{ uri: file.fileUrl }} style={styles.imagePlaceholder} />
-              ))}
-              {sharedFiles.filter((f: any) => f.mimeType?.startsWith('image/')).length === 0 && (
-                <>
-                  <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.border }]} />
-                  <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.border }]} />
-                  <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.border }]} />
-                </>
+              {sharedFiles.filter((f: any) => f.mimeType?.startsWith('image/')).length > 0 ? (
+                sharedFiles.filter((f: any) => f.mimeType?.startsWith('image/')).slice(0, 3).map((file: any, index: number) => (
+                  <Image key={file.id || index} source={{ uri: getFullUrl(file.fileUrl) }} style={styles.imagePlaceholder} />
+                ))
+              ) : (
+                <View style={[styles.emptyFilesBox, { backgroundColor: theme.colors.card }]}>
+                  <Ionicons name="images-outline" size={24} color={theme.colors.textSecondary} />
+                  <Text style={[styles.emptyFilesText, { color: theme.colors.textSecondary }]}>Sin imágenes compartidas</Text>
+                </View>
               )}
             </View>
             
@@ -345,5 +358,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     flex: 1,
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 10,
+    fontStyle: 'italic',
+  },
+  emptyFilesBox: {
+    flex: 1,
+    height: 100,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+    borderStyle: 'dashed',
+    gap: 8,
+  },
+  emptyFilesText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

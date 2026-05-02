@@ -17,13 +17,21 @@ import {
   Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { 
+  FadeInDown, 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  withTiming 
+} from 'react-native-reanimated';
 import { TaskModal } from '@/components/login/TaskModal';
 import { ProjectActionsModal } from '@/components/login/ProjectActionsModal';
 import { TaskActionsModal } from '@/components/login/TaskActionsModal';
 import { ProjectModal } from '@/components/login/ProjectModal';
 import { ConfirmModal } from '@/components/shared/ConfirmModal';
+import { AddCollaboratorModal } from '@/components/login/AddCollaboratorModal';
 import api from '@/utils/api';
+import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -44,7 +52,39 @@ export default function ProjectDetailScreen() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projectCollaborators, setProjectCollaborators] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [addCollabModalVisible, setAddCollabModalVisible] = useState(false);
+  
+  // FAB Expansion State
+  const [isFabOpen, setIsFabOpen] = useState(false);
+  const fabAnim = useSharedValue(0);
+
+  const toggleFab = () => {
+    const toValue = isFabOpen ? 0 : 1;
+    fabAnim.value = withTiming(toValue, { duration: 300 });
+    setIsFabOpen(!isFabOpen);
+  };
+
+  const taskButtonStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: fabAnim.value },
+      { translateY: withTiming(fabAnim.value * -70, { duration: 300 }) }
+    ],
+    opacity: withTiming(fabAnim.value, { duration: 200 }),
+  }));
+
+  const collabButtonStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: fabAnim.value },
+      { translateY: withTiming(fabAnim.value * -130, { duration: 400 }) }
+    ],
+    opacity: withTiming(fabAnim.value, { duration: 300 }),
+  }));
+
+  const mainFabStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: withTiming(isFabOpen ? '45deg' : '0deg') }]
+  }));
 
   const fetchProjectData = async () => {
     if (!project) setLoading(true);
@@ -52,6 +92,17 @@ export default function ProjectDetailScreen() {
       const response = await api.get(`/projects/${id}`);
       setProject(response.data);
       setTasks(response.data.tasks || []);
+      // El backend ahora devuelve miembros en la respuesta del proyecto
+      if (response.data.members) {
+        setProjectCollaborators(
+          response.data.members.map((m: any) => ({
+            id: m.user.id,
+            name: m.user.fullName,
+            avatar: m.user.avatarUrl,
+            role: m.role,
+          }))
+        );
+      }
     } catch (error) {
       console.error('Error fetching project:', error);
       Alert.alert('Error', 'No se pudo cargar la información del proyecto.');
@@ -96,6 +147,27 @@ export default function ProjectDetailScreen() {
     } catch (error) {
       console.error('Error saving project:', error);
       Alert.alert('Error', 'No se pudo actualizar el proyecto.');
+    }
+  };
+
+  const handleAddCollaborator = async (collaborator: any) => {
+    try {
+      await api.post(`/projects/${id}/members`, {
+        memberId: collaborator.id
+      });
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Colaborador añadido',
+        text2: `${collaborator.name} ahora es parte del proyecto.`,
+      });
+      
+      setAddCollabModalVisible(false);
+      fetchProjectData();
+    } catch (error: any) {
+      console.error('Error adding collaborator:', error);
+      const msg = error?.response?.data?.message || 'No se pudo añadir al colaborador.';
+      Alert.alert('Error', msg);
     }
   };
 
@@ -190,6 +262,41 @@ export default function ProjectDetailScreen() {
                       />
                     </View>
                   </View>
+
+                  {/* Sección de Miembros del Equipo */}
+                  <View style={styles.membersSection}>
+                    <Text style={[styles.sectionSubtitle, { color: theme.colors.textSecondary }]}>Miembros del Equipo</Text>
+                    <View style={styles.membersList}>
+                      {projectCollaborators.map((member, index) => (
+                        <View 
+                          key={member.id} 
+                          style={[
+                            styles.memberAvatarContainer, 
+                            { 
+                              marginLeft: index === 0 ? 0 : -12,
+                              zIndex: 100 - index
+                            }
+                          ]}
+                        >
+                          <View style={[styles.memberAvatar, { backgroundColor: theme.colors.primaryLight, borderColor: theme.colors.background }]}>
+                            {member.avatar ? (
+                              <Image source={{ uri: member.avatar }} style={styles.memberAvatarImg} />
+                            ) : (
+                              <Text style={[styles.memberAvatarText, { color: theme.colors.primary }]}>
+                                {member.name?.charAt(0)}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      ))}
+                      <TouchableOpacity 
+                        style={[styles.addMemberBtn, { backgroundColor: theme.colors.primaryLight, borderColor: theme.colors.background }]}
+                        onPress={() => setAddCollabModalVisible(true)}
+                      >
+                        <Ionicons name="add" size={20} color={theme.colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </Animated.View>
 
                   <View style={styles.tasksSection}>
@@ -239,12 +346,50 @@ export default function ProjectDetailScreen() {
           </View>
         </ScrollView>
 
-        <Pressable 
-          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-          onPress={() => { setEditingTask(null); setTaskModalVisible(true); }}
-        >
-          <Ionicons name="add" size={30} color="#FFFFFF" />
-        </Pressable>
+        {/* Expandable FAB */}
+        <View style={styles.fabContainer}>
+          <Animated.View style={[styles.subFab, collabButtonStyle, { backgroundColor: theme.colors.card }]}>
+            <Pressable 
+              onPress={() => {
+                toggleFab();
+                setAddCollabModalVisible(true);
+              }}
+              style={styles.subFabInner}
+            >
+              <Ionicons name="people" size={24} color={theme.colors.primary} />
+            </Pressable>
+            <Animated.View style={[styles.fabLabel, { backgroundColor: theme.colors.card }]}>
+              <Text style={[styles.fabLabelText, { color: theme.colors.text }]}>Colaborador</Text>
+            </Animated.View>
+          </Animated.View>
+
+          {/* Add Task Button */}
+          <Animated.View style={[styles.subFab, taskButtonStyle, { backgroundColor: theme.colors.card }]}>
+            <Pressable 
+              onPress={() => {
+                toggleFab();
+                setEditingTask(null);
+                setTaskModalVisible(true);
+              }}
+              style={styles.subFabInner}
+            >
+              <Ionicons name="list" size={24} color={theme.colors.primary} />
+            </Pressable>
+            <Animated.View style={[styles.fabLabel, { backgroundColor: theme.colors.card }]}>
+              <Text style={[styles.fabLabelText, { color: theme.colors.text }]}>Nueva Tarea</Text>
+            </Animated.View>
+          </Animated.View>
+
+          {/* Main FAB */}
+          <Pressable 
+            style={[styles.mainFab, { backgroundColor: theme.colors.primary }]}
+            onPress={toggleFab}
+          >
+            <Animated.View style={mainFabStyle}>
+              <Ionicons name="add" size={32} color="#FFFFFF" />
+            </Animated.View>
+          </Pressable>
+        </View>
 
         {/* Modales */}
         <TaskModal 
@@ -276,6 +421,12 @@ export default function ProjectDetailScreen() {
           onClose={() => setActionsVisible(false)} 
           onDelete={() => setConfirmDeleteVisible(true)}
           onEdit={() => setProjectModalVisible(true)}
+          onViewCollaborators={() => {
+            router.push({
+              pathname: '/(tabs)/collaborators',
+              params: { projectId: id }
+            });
+          }}
         />
         
         <TaskActionsModal
@@ -297,6 +448,13 @@ export default function ProjectDetailScreen() {
           message={`¿Estás seguro de que deseas eliminar la tarea "${selectedTask?.title}"?`}
           isDestructive={true}
           confirmLabel="Eliminar"
+        />
+
+        <AddCollaboratorModal
+          visible={addCollabModalVisible}
+          onClose={() => setAddCollabModalVisible(false)}
+          onSelect={(col: any) => handleAddCollaborator(col)}
+          currentCollaborators={projectCollaborators}
         />
       </ThemedView>
     </SafeAreaView>
@@ -354,6 +512,50 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 5,
   },
+  membersSection: {
+    marginBottom: 32,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  membersList: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  memberAvatarContainer: {
+    position: 'relative',
+  },
+  memberAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  memberAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  memberAvatarText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  addMemberBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
   tasksSection: {
     marginBottom: 100,
   },
@@ -388,5 +590,53 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     fontStyle: 'italic',
+  },
+  fabContainer: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 60,
+    height: 250,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  mainFab: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  subFab: {
+    position: 'absolute',
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  subFabInner: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fabLabel: {
+    position: 'absolute',
+    right: 65,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    minWidth: 120,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  fabLabelText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

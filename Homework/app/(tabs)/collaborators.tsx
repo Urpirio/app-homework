@@ -44,7 +44,7 @@ export default function CollaboratorsScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [invitationSent, setInvitationSent] = useState(false);
-  const { scannedCode } = useLocalSearchParams<{ scannedCode?: string }>();
+  const { scannedCode, projectId } = useLocalSearchParams<{ scannedCode?: string; projectId?: string }>();
   const [isFabOpen, setIsFabOpen] = useState(false);
   const fabAnim = useSharedValue(0);
 
@@ -81,15 +81,25 @@ export default function CollaboratorsScreen() {
   const fetchCollaborators = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/collaborators');
-      const mapped = response.data.map((c: any) => ({
-        id: c.collaborator.id,
-        collaborationId: c.id,
-        name: c.collaborator.fullName,
-        role: c.collaborator.role || 'Colaborador',
-        avatar: c.collaborator.avatarUrl,
-        status: c.status === 'ACTIVE' ? 'active' : 'pending',
-      }));
+      const endpoint = projectId ? `/projects/${projectId}/collaborators` : '/collaborators';
+      const collabsRes = await api.get(endpoint);
+
+      // Si es filtrado por proyecto, la estructura de datos podría variar un poco
+      // El backend usualmente devuelve una lista de usuarios en este caso
+      const data = projectId ? collabsRes.data : collabsRes.data;
+      
+      const mapped = data.map((c: any) => {
+        // Normalizar estructura si viene de /projects/:id/collaborators o /collaborators
+        const col = c.collaborator || c;
+        return {
+          id: col.id,
+          collaborationId: c.id,
+          name: col.fullName || col.name,
+          role: col.role || 'Colaborador',
+          avatar: col.avatarUrl,
+          status: c.status === 'ACTIVE' || !projectId ? 'active' : 'pending',
+        };
+      });
       setCollaborators(mapped);
     } catch (error) {
       console.error('Error fetching collaborators:', error);
@@ -99,12 +109,14 @@ export default function CollaboratorsScreen() {
   };
 
   const handleSearch = async (codeToSearch?: string) => {
-    const code = String(codeToSearch || identityCode || '').trim();
+    const code = String(codeToSearch || identityCode || '').trim().toUpperCase();
     if (!code) return;
+    console.log('[DEBUG] Buscando colaborador con código:', JSON.stringify(code));
     setIsSearching(true);
     
     try {
-      const response = await api.get(`/collaborators/search/${code.trim()}`);
+      const response = await api.get(`/collaborators/search/${encodeURIComponent(code)}`);
+      console.log('[DEBUG] Colaborador encontrado:', response.data);
       setFoundCollab({
         id: response.data.id,
         name: response.data.fullName,
@@ -113,25 +125,30 @@ export default function CollaboratorsScreen() {
         status: 'pending'
       });
     } catch (error: any) {
+      console.log('[DEBUG] Error buscando colaborador:', error?.response?.status, error?.response?.data);
       Toast.show({
         type: 'error',
         text1: 'No encontrado',
-        text2: 'No existe un usuario con ese código de identidad.',
+        text2: `No existe un usuario con el código "${code}"`,
         position: 'bottom'
       });
-      if (codeToSearch) setIsAddModalVisible(false); // Si venía de scanner y falló, cerrar
+      if (codeToSearch) setIsAddModalVisible(false);
     } finally {
       setIsSearching(false);
     }
   };
 
-  useEffect(() => {
-    if (scannedCode) {
-      setIdentityCode(scannedCode);
-      setIsAddModalVisible(true);
-      handleSearch(scannedCode);
-    }
-  }, [scannedCode]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchCollaborators();
+      
+      if (scannedCode) {
+        setIdentityCode(scannedCode);
+        setIsAddModalVisible(true);
+        handleSearch(scannedCode);
+      }
+    }, [scannedCode, projectId])
+  );
 
   const handleConfirmAdd = async () => {
     if (!foundCollab) return;
@@ -199,6 +216,27 @@ export default function CollaboratorsScreen() {
               <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
             ) : (
               <View style={styles.list}>
+                {/* Filtro de Proyecto Activo */}
+                {projectId && (
+                  <Animated.View 
+                    entering={FadeInDown}
+                    style={[styles.filterBanner, { backgroundColor: theme.colors.primaryLight }]}
+                  >
+                    <View style={styles.filterInfo}>
+                      <Ionicons name="folder-open" size={20} color={theme.colors.primary} />
+                      <Text style={[styles.filterText, { color: theme.colors.primary }]}>
+                        Filtrado por proyecto
+                      </Text>
+                    </View>
+                    <TouchableOpacity 
+                      onPress={() => router.setParams({ projectId: undefined })}
+                      style={styles.clearFilterBtn}
+                    >
+                      <Ionicons name="close-circle" size={20} color={theme.colors.primary} />
+                    </TouchableOpacity>
+                  </Animated.View>
+                )}
+
                 {filteredCollaborators.map((collab, index) => (
                   <Animated.View 
                     key={collab.id} 
@@ -395,11 +433,12 @@ export default function CollaboratorsScreen() {
                   <Text style={[styles.inputLabel, { color: theme.colors.textSecondary }]}>Código de Identidad</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: theme.colors.background, color: theme.colors.text }]}
-                    placeholder="Ej. ID-8829"
+                    placeholder="Ej. HW-XXXX"
                     placeholderTextColor={theme.colors.textSecondary}
                     value={identityCode}
-                    onChangeText={setIdentityCode}
+                    onChangeText={(text) => setIdentityCode(text.toUpperCase().trim())}
                     autoCapitalize="characters"
+                    autoCorrect={false}
                   />
                 </View>
 
@@ -413,7 +452,7 @@ export default function CollaboratorsScreen() {
                   
                   <TouchableOpacity 
                     style={[styles.confirmBtn, { backgroundColor: theme.colors.primary }]} 
-                    onPress={handleSearch}
+                    onPress={() => handleSearch()}
                     disabled={isSearching}
                   >
                     {isSearching ? (
@@ -485,21 +524,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   title: { 
     fontSize: 32, 
     fontWeight: '800',
     letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    marginTop: 4,
   },
   searchBar: {
     flexDirection: 'row',
@@ -513,9 +541,6 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: 44,
-    fontSize: 15,
-  },
-  searchText: {
     fontSize: 15,
   },
   list: {
@@ -631,6 +656,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 40,
+    fontSize: 16,
+    fontStyle: 'italic',
+  },
+  filterBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    marginHorizontal: 4,
+  },
+  filterInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  filterText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  clearFilterBtn: {
+    padding: 4,
+  },
   foundContainer: {
     width: '100%',
     alignItems: 'center',
@@ -742,5 +794,44 @@ const styles = StyleSheet.create({
   fabLabelText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+    width: '100%',
+  },
+  quickActionBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  quickActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalAvatarText: {
+    fontSize: 32,
+    fontWeight: '800',
+  },
+  modalName: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 20,
   },
 });
