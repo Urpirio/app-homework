@@ -13,6 +13,7 @@ import { UploadsModule } from './uploads/uploads.module';
 import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { join } from 'path';
     CollaboratorsModule,
     MessagesModule,
     UploadsModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

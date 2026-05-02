@@ -25,10 +25,12 @@ export function RegisterForm({ onSubmit }: RegisterFormProps) {
     fullName: '',
     email: '',
     password: '',
+    confirmPassword: '',
   }, {
     fullName: (val) => val.length < 3 ? 'Mínimo 3 caracteres' : null,
     email: validateEmail,
     password: validatePassword,
+    confirmPassword: (val, allValues) => val !== allValues.password ? 'Las contraseñas no coinciden' : null,
   });
 
   const handleValueChange = (field: string, value: string) => {
@@ -94,6 +96,21 @@ export function RegisterForm({ onSubmit }: RegisterFormProps) {
       />
       <ErrorMessage message={errors.password} visible={!!errors.password} />
 
+      <AnimatedInput
+        value={values.confirmPassword}
+        onChangeText={(text) => handleValueChange('confirmPassword', text)}
+        placeholder="Confirmar contraseña"
+        error={errors.confirmPassword}
+        secureTextEntry={true}
+        autoCapitalize="none"
+        accessibilityLabel="Confirmar contraseña"
+        accessibilityHint="Repite tu contraseña"
+        delay={animationPresets.login.staggerDelay * 3}
+        icon="shield-checkmark-outline"
+        showVisibilityToggle={true}
+      />
+      <ErrorMessage message={errors.confirmPassword} visible={!!errors.confirmPassword} />
+
       <ErrorMessage 
         message={regError} 
         visible={!!regError} 
@@ -107,7 +124,7 @@ export function RegisterForm({ onSubmit }: RegisterFormProps) {
         disabled={isLoading}
         accessibilityLabel="Botón de registro"
         accessibilityHint="Toca para crear tu cuenta"
-        delay={animationPresets.login.staggerDelay * 3}
+        delay={animationPresets.login.staggerDelay * 4}
       />
     </View>
   );

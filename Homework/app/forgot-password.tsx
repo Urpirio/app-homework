@@ -16,11 +16,18 @@ export default function ForgotPasswordScreen() {
   const { theme } = useTheme();
 
   const handleReset = async (email: string) => {
-    // Simular envío de correo
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    console.log('Reset email sent to:', email);
-    alert('Se han enviado instrucciones a tu correo.');
-    router.back();
+    try {
+      await api.post('/auth/forgot-password', { email });
+      
+      router.push({
+        pathname: '/verify-code',
+        params: { email, type: 'forgot' }
+      });
+    } catch (error: any) {
+      console.error('Reset error:', error);
+      const message = error.response?.data?.message || 'Error al enviar el código de recuperación';
+      Alert.alert('Error', Array.isArray(message) ? message[0] : message);
+    }
   };
 
   const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;

@@ -19,8 +19,10 @@ export default function RegisterScreen() {
   const handleRegister = async (data: any) => {
     try {
       await api.post('/auth/register', data);
-      Alert.alert('Éxito', 'Cuenta creada con éxito. Ahora puedes iniciar sesión.');
-      router.replace('/login');
+      router.push({
+        pathname: '/verify-code',
+        params: { email: data.email, password: data.password }
+      });
     } catch (error: any) {
       console.error('Registration error:', error.response?.data || error.message);
       const errorMessage = error.response?.data?.message || 'Error al crear la cuenta';
