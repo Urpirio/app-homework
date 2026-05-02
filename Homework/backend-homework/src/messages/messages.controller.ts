@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Body, UseGuards, Request } from '@nestjs/common';
 import { MessagesService } from './messages.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -19,6 +19,20 @@ export class MessagesController {
       collaboratorId,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 50,
+    );
+  }
+
+  @Post(':collaboratorId')
+  sendMessage(
+    @Request() req: any,
+    @Param('collaboratorId') collaboratorId: string,
+    @Body() body: { text: string; attachment?: any },
+  ) {
+    return this.messagesService.sendMessage(
+      req.user.userId,
+      collaboratorId,
+      body.text,
+      body.attachment,
     );
   }
 

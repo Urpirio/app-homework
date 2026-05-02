@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import api from '@/utils/api';
+import { useFocusEffect } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -22,12 +24,36 @@ export default function CollaboratorProfile() {
   const router = useRouter();
   const { theme } = useTheme();
 
-  // Datos simulados de proyectos en común
-  const commonProjects = [
-    { id: 'p1', title: 'Diseño de App Homework', status: 'En curso', color: '#6366f1' },
-    { id: 'p2', title: 'Sistema de Notificaciones', status: 'Finalizado', color: '#10b981' },
-    { id: 'p3', title: 'Optimización de Backend', status: 'En curso', color: '#f59e0b' },
-  ];
+  const [commonProjects, setCommonProjects] = useState<any[]>([]);
+  const [sharedFiles, setSharedFiles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProfileData = async () => {
+    try {
+      setLoading(true);
+      const [projectsRes, filesRes] = await Promise.all([
+        api.get(`/collaborators/${id}/common-projects`),
+        api.get(`/messages/${id}/files`),
+      ]);
+
+      const allProjects = [
+        ...(projectsRes.data.userProjects || []).map((p: any) => ({ ...p, status: 'En curso' })),
+        ...(projectsRes.data.collabProjects || []).map((p: any) => ({ ...p, status: 'En curso' })),
+      ];
+      setCommonProjects(allProjects);
+      setSharedFiles(filesRes.data || []);
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfileData();
+    }, [id])
+  );
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
@@ -90,7 +116,7 @@ export default function CollaboratorProfile() {
               >
                 <View style={[styles.projectIndicator, { backgroundColor: project.color }]} />
                 <View style={styles.projectContent}>
-                  <Text style={[styles.projectTitle, { color: theme.colors.text }]}>{project.title}</Text>
+                  <Text style={[styles.projectTitle, { color: theme.colors.text }]}>{project.name}</Text>
                   <View style={styles.statusRow}>
                     <View style={[styles.statusDot, { backgroundColor: project.color }]} />
                     <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>{project.status}</Text>
@@ -121,21 +147,29 @@ export default function CollaboratorProfile() {
           <View style={styles.sharedFilesContent}>
             {/* Images Grid Snippet */}
             <View style={styles.imagesRow}>
-              <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.border }]} />
-              <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.border }]} />
-              <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.border }]} />
+              {sharedFiles.filter((f: any) => f.mimeType?.startsWith('image/')).slice(0, 3).map((file: any, index: number) => (
+                <Image key={file.id || index} source={{ uri: file.fileUrl }} style={styles.imagePlaceholder} />
+              ))}
+              {sharedFiles.filter((f: any) => f.mimeType?.startsWith('image/')).length === 0 && (
+                <>
+                  <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.border }]} />
+                  <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.border }]} />
+                  <View style={[styles.imagePlaceholder, { backgroundColor: theme.colors.border }]} />
+                </>
+              )}
             </View>
             
             {/* Documents List */}
             <View style={styles.docItemsList}>
-              <TouchableOpacity style={[styles.docItem, { backgroundColor: theme.colors.card }]}>
-                <Ionicons name="document-text" size={20} color={theme.colors.primary} />
-                <Text style={[styles.docItemText, { color: theme.colors.text }]} numberOfLines={1}>Especificaciones_Proyecto.pdf</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.docItem, { backgroundColor: theme.colors.card, marginTop: 8 }]}>
-                <Ionicons name="document-text" size={20} color={theme.colors.primary} />
-                <Text style={[styles.docItemText, { color: theme.colors.text }]} numberOfLines={1}>Guia_Diseno_v2.docx</Text>
-              </TouchableOpacity>
+              {sharedFiles.filter((f: any) => !f.mimeType?.startsWith('image/')).slice(0, 2).map((file: any, index: number) => (
+                <TouchableOpacity key={file.id || index} style={[styles.docItem, { backgroundColor: theme.colors.card, marginTop: index > 0 ? 8 : 0 }]}>
+                  <Ionicons name="document-text" size={20} color={theme.colors.primary} />
+                  <Text style={[styles.docItemText, { color: theme.colors.text }]} numberOfLines={1}>{file.fileName}</Text>
+                </TouchableOpacity>
+              ))}
+              {sharedFiles.filter((f: any) => !f.mimeType?.startsWith('image/')).length === 0 && (
+                <Text style={[{ color: theme.colors.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 10 }]}>Sin documentos compartidos aún</Text>
+              )}
             </View>
           </View>
         </View>

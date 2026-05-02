@@ -29,6 +29,8 @@ import { ThemedView } from '@/components/shared/ThemedView';
 import Animated, { FadeInRight, FadeInLeft, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import api from '@/utils/api';
+import * as SecureStore from 'expo-secure-store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -62,33 +64,100 @@ export default function ChatScreen() {
   const [isMessageOptionsVisible, setMessageOptionsVisible] = useState(false);
   const [selectedMessageText, setSelectedMessageText] = useState('');
   
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', text: '¡Hola! ¿Cómo vas con el proyecto?', sender: 'other', timestamp: '10:00 AM' },
-    { id: '2', text: 'Todo bien, avanzando con la pantalla de chat.', sender: 'me', timestamp: '10:02 AM' },
-    { id: '3', text: 'Excelente, avísame si necesitas algo.', sender: 'other', timestamp: '10:05 AM' },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(true);
 
   const flatListRef = useRef<FlatList>(null);
 
-  const sendMessage = () => {
+  // Cargar historial de mensajes desde el backend
+  useEffect(() => {
+    const loadMessages = async () => {
+      try {
+        setLoadingMessages(true);
+        const response = await api.get(`/messages/${id}`);
+        const mapped = response.data.map((m: any) => ({
+          id: m.id,
+          text: m.text,
+          sender: m.sender?.id === id ? 'other' : 'me',
+          timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          attachment: m.attachment ? {
+            type: m.attachment.mimeType?.startsWith('image/') ? 'image' : 
+                  m.attachment.mimeType?.startsWith('video/') ? 'video' : 'document',
+            uri: m.attachment.fileUrl,
+            name: m.attachment.fileName,
+            mimeType: m.attachment.mimeType,
+          } : undefined,
+        }));
+        setMessages(mapped);
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      } finally {
+        setLoadingMessages(false);
+      }
+    };
+    loadMessages();
+  }, [id]);
+
+  const sendMessage = async () => {
     if (message.trim().length === 0 && !currentAttachment) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: message,
-      sender: 'me',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      attachment: currentAttachment ? currentAttachment : undefined,
-    };
+    try {
+      let attachmentData;
 
-    setMessages([...messages, newMessage]);
-    setMessage('');
-    setCurrentAttachment(null);
-    
-    // Scroll to bottom
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+      // Si hay adjunto, subirlo primero
+      if (currentAttachment) {
+        const formData = new FormData();
+        formData.append('file', {
+          uri: currentAttachment.uri,
+          name: currentAttachment.name,
+          type: currentAttachment.mimeType || 'application/octet-stream',
+        } as any);
+
+        const uploadRes = await api.post('/uploads', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        attachmentData = uploadRes.data;
+      }
+
+      // Enviar mensaje vía REST (mientras no esté WebSocket integrado en frontend)
+      const response = await api.post(`/messages/${id}`, {
+        text: message.trim() || (currentAttachment ? 'Archivo adjunto' : ''),
+        receiverId: id,
+        attachment: attachmentData,
+      });
+
+      // Agregar localmente al chat
+      const m = response.data;
+      const newMessage: Message = {
+        id: m.id,
+        text: m.text,
+        sender: 'me',
+        timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        attachment: m.attachment ? {
+          type: m.attachment.mimeType?.startsWith('image/') ? 'image' :
+                m.attachment.mimeType?.startsWith('video/') ? 'video' : 'document',
+          uri: m.attachment.fileUrl,
+          name: m.attachment.fileName,
+          mimeType: m.attachment.mimeType,
+        } : undefined,
+      };
+
+      setMessages(prev => [...prev, newMessage]);
+      setMessage('');
+      setCurrentAttachment(null);
+
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error?.response?.data?.message || 'No se pudo enviar el mensaje.',
+        position: 'bottom'
+      });
+    }
   };
 
   const handleAttachment = () => {

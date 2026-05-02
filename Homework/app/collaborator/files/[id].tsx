@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   FlatList,
   Dimensions,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +15,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import api from '@/utils/api';
+import { useFocusEffect } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -22,16 +25,31 @@ export default function SharedFilesScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<'images' | 'docs'>('images');
+  const [sharedImages, setSharedImages] = useState<any[]>([]);
+  const [sharedDocs, setSharedDocs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Datos simulados extensos
-  const sharedImages = Array(12).fill(null).map((_, i) => ({ id: `img${i}`, uri: null }));
-  const sharedDocs = [
-    { id: 'd1', name: 'Especificaciones_Proyecto.pdf', date: 'Hace 2 días', size: '1.2 MB' },
-    { id: 'd2', name: 'Guia_Diseno_v2.docx', date: 'Hace 3 días', size: '2.5 MB' },
-    { id: 'd3', name: 'Contrato_Colaboracion.pdf', date: 'Hace 1 semana', size: '800 KB' },
-    { id: 'd4', name: 'Planificacion_Q2.xlsx', date: 'Hace 2 semanas', size: '1.1 MB' },
-    { id: 'd5', name: 'Logo_Variaciones.zip', date: 'Hace 1 mes', size: '15 MB' },
-  ];
+  const fetchFiles = async () => {
+    try {
+      setLoading(true);
+      const [imagesRes, docsRes] = await Promise.all([
+        api.get(`/messages/${id}/files?type=image`),
+        api.get(`/messages/${id}/files?type=document`),
+      ]);
+      setSharedImages(imagesRes.data || []);
+      setSharedDocs(docsRes.data || []);
+    } catch (error) {
+      console.error('Error fetching shared files:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchFiles();
+    }, [id])
+  );
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
@@ -67,20 +85,27 @@ export default function SharedFilesScreen() {
 
       {/* Content */}
       <View style={styles.content}>
-        {activeTab === 'images' ? (
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
+        ) : activeTab === 'images' ? (
           <FlatList
             key="images-list"
             data={sharedImages}
             numColumns={3}
             keyExtractor={item => item.id}
-            renderItem={({ index }) => (
+            renderItem={({ item, index }) => (
               <Animated.View 
                 entering={FadeIn.delay(index * 50)}
                 style={[styles.imageItem, { backgroundColor: theme.colors.border }]} 
-              />
+              >
+                {item.fileUrl && <Image source={{ uri: item.fileUrl }} style={styles.imageItem} />}
+              </Animated.View>
             )}
             columnWrapperStyle={styles.imageRow}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No hay imágenes compartidas</Text>
+            }
           />
         ) : (
           <FlatList
@@ -94,8 +119,11 @@ export default function SharedFilesScreen() {
                     <Ionicons name="document-text" size={24} color={theme.colors.primary} />
                   </View>
                   <View style={styles.docInfo}>
-                    <Text style={[styles.docName, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Text>
-                    <Text style={[styles.docMeta, { color: theme.colors.textSecondary }]}>{item.date} • {item.size}</Text>
+                    <Text style={[styles.docName, { color: theme.colors.text }]} numberOfLines={1}>{item.fileName}</Text>
+                    <Text style={[styles.docMeta, { color: theme.colors.textSecondary }]}>
+                      {new Date(item.createdAt).toLocaleDateString()}
+                      {item.fileSize ? ` \u2022 ${(item.fileSize / 1024).toFixed(0)} KB` : ''}
+                    </Text>
                   </View>
                   <Ionicons name="download-outline" size={20} color={theme.colors.textSecondary} />
                 </TouchableOpacity>
@@ -103,6 +131,9 @@ export default function SharedFilesScreen() {
             )}
             contentContainerStyle={styles.docsList}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No hay documentos compartidos</Text>
+            }
           />
         )}
       </View>
@@ -167,4 +198,5 @@ const styles = StyleSheet.create({
   docInfo: { flex: 1 },
   docName: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
   docMeta: { fontSize: 12 },
+  emptyText: { textAlign: 'center', marginTop: 40, fontSize: 14 },
 });

@@ -2,7 +2,7 @@ import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { 
   ScrollView, 
   StyleSheet, 
@@ -17,15 +17,23 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { 
+  FadeInDown, 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  withTiming 
+} from 'react-native-reanimated';
 import api from '@/utils/api';
-import { useFocusEffect, router } from 'expo-router';
+import { useFocusEffect, router, useLocalSearchParams } from 'expo-router';
 import Toast from 'react-native-toast-message';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function CollaboratorsScreen() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [collaborators, setCollaborators] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCollab, setSelectedCollab] = useState<any>(null);
@@ -36,66 +44,118 @@ export default function CollaboratorsScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [invitationSent, setInvitationSent] = useState(false);
+  const { scannedCode } = useLocalSearchParams<{ scannedCode?: string }>();
+  const [isFabOpen, setIsFabOpen] = useState(false);
+  const fabAnim = useSharedValue(0);
+
+  const toggleFab = () => {
+    const toValue = isFabOpen ? 0 : 1;
+    fabAnim.value = withSpring(toValue, { 
+      damping: 20, 
+      stiffness: 80,
+      mass: 0.8
+    });
+    setIsFabOpen(!isFabOpen);
+  };
+
+  const scanStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: fabAnim.value },
+      { translateY: withSpring(fabAnim.value * -70, { damping: 15, stiffness: 70 }) }
+    ],
+    opacity: withTiming(fabAnim.value, { duration: 200 }),
+  }));
+
+  const manualStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: fabAnim.value },
+      { translateY: withSpring(fabAnim.value * -130, { damping: 18, stiffness: 75 }) }
+    ],
+    opacity: withTiming(fabAnim.value, { duration: 300 }),
+  }));
+
+  const mainFabStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: withTiming(isFabOpen ? '45deg' : '0deg') }]
+  }));
 
   const fetchCollaborators = async () => {
     try {
-      // Por ahora simulamos, en el futuro esto vendría del backend
-      // await api.get('/collaborators');
-      setTimeout(() => {
-        setCollaborators([
-          { id: '1', name: 'Ana García', role: 'Diseñadora UI', avatar: null, status: 'active' },
-          { id: '2', name: 'Carlos López', role: 'Frontend Dev', avatar: null, status: 'active' },
-          { id: '3', name: 'Elena Rivas', role: 'Product Manager', avatar: null, status: 'active' },
-          { id: '4', name: 'Miguel Torres', role: 'Backend Dev', avatar: null, status: 'active' },
-        ]);
-        setLoading(false);
-      }, 1000);
+      setLoading(true);
+      const response = await api.get('/collaborators');
+      const mapped = response.data.map((c: any) => ({
+        id: c.collaborator.id,
+        collaborationId: c.id,
+        name: c.collaborator.fullName,
+        role: c.collaborator.role || 'Colaborador',
+        avatar: c.collaborator.avatarUrl,
+        status: c.status === 'ACTIVE' ? 'active' : 'pending',
+      }));
+      setCollaborators(mapped);
     } catch (error) {
       console.error('Error fetching collaborators:', error);
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleSearch = () => {
-    if (identityCode.trim() === '') return;
+  const handleSearch = async (codeToSearch?: string) => {
+    const code = String(codeToSearch || identityCode || '').trim();
+    if (!code) return;
     setIsSearching(true);
     
-    // Simular búsqueda en el backend
-    setTimeout(() => {
-      // Simulamos que encontramos a alguien
+    try {
+      const response = await api.get(`/collaborators/search/${code.trim()}`);
       setFoundCollab({
-        id: '99',
-        name: 'Roberto Sánchez',
-        role: 'Tech Lead',
-        identityCode: identityCode,
-        avatar: null,
+        id: response.data.id,
+        name: response.data.fullName,
+        role: response.data.role || 'Colaborador',
+        avatar: response.data.avatarUrl,
         status: 'pending'
       });
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'No encontrado',
+        text2: 'No existe un usuario con ese código de identidad.',
+        position: 'bottom'
+      });
+      if (codeToSearch) setIsAddModalVisible(false); // Si venía de scanner y falló, cerrar
+    } finally {
       setIsSearching(false);
-    }, 800);
+    }
   };
 
-  const handleConfirmAdd = () => {
+  useEffect(() => {
+    if (scannedCode) {
+      setIdentityCode(scannedCode);
+      setIsAddModalVisible(true);
+      handleSearch(scannedCode);
+    }
+  }, [scannedCode]);
+
+  const handleConfirmAdd = async () => {
     if (!foundCollab) return;
     
-    // Evitar duplicados
-    if (collaborators.find(c => c.id === foundCollab.id)) {
-      setIsAddModalVisible(false);
-      setFoundCollab(null);
-      setIdentityCode('');
-      return;
+    try {
+      await api.post('/collaborators/request', { identityCode: identityCode.trim() });
+      setInvitationSent(true);
+      
+      // Después de un momento cerramos el modal y refrescamos
+      setTimeout(() => {
+        setIsAddModalVisible(false);
+        setFoundCollab(null);
+        setIdentityCode('');
+        setInvitationSent(false);
+        fetchCollaborators();
+      }, 2500);
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error?.response?.data?.message || 'No se pudo enviar la solicitud.',
+        position: 'bottom'
+      });
     }
-
-    setInvitationSent(true);
-    
-    // Después de un momento cerramos el modal y limpiamos
-    setTimeout(() => {
-      setCollaborators([foundCollab, ...collaborators]);
-      setIsAddModalVisible(false);
-      setFoundCollab(null);
-      setIdentityCode('');
-      setInvitationSent(false);
-    }, 2500);
   };
 
   const filteredCollaborators = collaborators.filter(c => 
@@ -121,14 +181,7 @@ export default function CollaboratorsScreen() {
             <View style={styles.header}>
               <View style={styles.headerTop}>
                 <Text style={[styles.title, { color: theme.colors.text }]}>Colaboradores</Text>
-                <TouchableOpacity 
-                  style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                  onPress={() => setIsAddModalVisible(true)}
-                >
-                  <Ionicons name="add" size={28} color="#FFFFFF" />
-                </TouchableOpacity>
               </View>
-              {/* <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Gestiona tu equipo de trabajo</Text> */}
             </View>
 
             <View style={[styles.searchBar, { backgroundColor: theme.colors.card }]}>
@@ -203,6 +256,52 @@ export default function CollaboratorsScreen() {
             )}
           </View>
         </ScrollView>
+
+        {/* FAB SPEED DIAL */}
+        <View style={styles.fabContainer}>
+          {/* Botón Nuevo Colaborador */}
+          <Animated.View style={[styles.subFab, manualStyle, { backgroundColor: theme.colors.card }]}>
+            <TouchableOpacity 
+              onPress={() => {
+                toggleFab();
+                setIsAddModalVisible(true);
+              }}
+              style={styles.subFabInner}
+            >
+              <Ionicons name="person-add-outline" size={22} color={theme.colors.primary} />
+              <View style={[styles.fabLabel, { backgroundColor: theme.colors.card }]}>
+                <Text style={[styles.fabLabelText, { color: theme.colors.text }]}>Nuevo Colaborador</Text>
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Botón Scanner */}
+          <Animated.View style={[styles.subFab, scanStyle, { backgroundColor: theme.colors.card }]}>
+            <TouchableOpacity 
+              onPress={() => {
+                toggleFab();
+                router.push('/collaborator/scanner');
+              }}
+              style={styles.subFabInner}
+            >
+              <Ionicons name="qr-code-outline" size={22} color={theme.colors.primary} />
+              <View style={[styles.fabLabel, { backgroundColor: theme.colors.card }]}>
+                <Text style={[styles.fabLabelText, { color: theme.colors.text }]}>Escanear</Text>
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Botón Principal */}
+          <TouchableOpacity 
+            activeOpacity={0.9}
+            onPress={toggleFab}
+            style={[styles.mainFab, { backgroundColor: theme.colors.primary }]}
+          >
+            <Animated.View style={mainFabStyle}>
+              <Ionicons name="add" size={32} color="#FFFFFF" />
+            </Animated.View>
+          </TouchableOpacity>
+        </View>
       </ThemedView>
 
       {/* Quick Actions Modal */}
@@ -596,20 +695,51 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 24,
   },
-  quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    width: '100%',
-  },
-  quickActionBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 16,
+  fabContainer: {
+    position: 'absolute',
+    bottom: 80,
+    right: 25,
+    width: 60,
+    height: 200,
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 4,
+    zIndex: 999,
   },
-  quickActionText: {
+  mainFab: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  subFab: {
+    position: 'absolute',
+    bottom: 5,
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  subFabInner: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fabLabel: {
+    position: 'absolute',
+    right: 60,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    minWidth: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabLabelText: {
     fontSize: 12,
     fontWeight: '700',
   },

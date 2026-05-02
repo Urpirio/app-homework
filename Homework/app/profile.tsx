@@ -19,14 +19,29 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ConfirmModal } from '@/components/shared/ConfirmModal';
 import * as SecureStore from 'expo-secure-store';
 import api from '@/utils/api';
+import QRCode from 'react-native-qrcode-svg';
+import * as Clipboard from 'expo-clipboard';
+import Toast from 'react-native-toast-message';
+import { Modal } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ProfileScreen() {
   const { theme } = useTheme();
   const [logoutVisible, setLogoutVisible] = useState(false);
+  const [qrVisible, setQrVisible] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const copyToClipboard = async (text: string) => {
+    await Clipboard.setStringAsync(text);
+    Toast.show({
+      type: 'success',
+      text1: 'Copiado',
+      text2: 'Código de identidad copiado al portapapeles',
+      position: 'bottom'
+    });
+  };
 
   const fetchProfile = async () => {
     if (!user) setLoading(true);
@@ -69,7 +84,9 @@ export default function ProfileScreen() {
                 <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
               </Pressable>
               <Text style={[styles.title, { color: theme.colors.text }]}>Perfil</Text>
-              <View style={{ width: 40 }} />
+              <Pressable onPress={() => setQrVisible(true)} style={styles.qrHeaderButton}>
+                <Ionicons name="qr-code-outline" size={24} color={theme.colors.primary} />
+              </Pressable>
             </View>
 
             {loading ? (
@@ -92,7 +109,19 @@ export default function ProfileScreen() {
                 <Text style={[styles.userEmail, { color: theme.colors.textSecondary }]}>
                   {user?.email || 'email@example.com'}
                 </Text>
-                <View style={[styles.roleBadge, { backgroundColor: theme.colors.card }]}>
+                
+                {user?.identityCode && (
+                  <Pressable 
+                    onPress={() => copyToClipboard(user.identityCode)}
+                    style={[styles.idContainer, { backgroundColor: theme.colors.card }]}
+                  >
+                    <Text style={[styles.idLabel, { color: theme.colors.textSecondary }]}>ID:</Text>
+                    <Text style={[styles.idText, { color: theme.colors.text }]}>{user.identityCode}</Text>
+                    <Ionicons name="copy-outline" size={14} color={theme.colors.primary} style={{ marginLeft: 6 }} />
+                  </Pressable>
+                )}
+
+                <View style={[styles.roleBadge, { backgroundColor: theme.colors.primary + '15' }]}>
                   <Text style={[styles.roleText, { color: theme.colors.primary }]}>
                     {user?.role || 'Miembro'}
                   </Text>
@@ -166,6 +195,51 @@ export default function ProfileScreen() {
           confirmLabel="Salir"
           isDestructive={true}
         />
+
+        {/* QR Identification Modal */}
+        <Modal
+          visible={qrVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setQrVisible(false)}
+        >
+          <Pressable 
+            style={styles.modalOverlay}
+            onPress={() => setQrVisible(false)}
+          >
+            <Animated.View 
+              entering={FadeInDown}
+              style={[styles.qrModalContent, { backgroundColor: theme.colors.card }]}
+            >
+              <View style={styles.qrHeader}>
+                <Text style={[styles.qrTitle, { color: theme.colors.text }]}>Identificación QR</Text>
+                <Pressable onPress={() => setQrVisible(false)}>
+                  <Ionicons name="close" size={24} color={theme.colors.text} />
+                </Pressable>
+              </View>
+              
+              <View style={styles.qrCodeContainer}>
+                {user?.identityCode && (
+                  <QRCode
+                    value={user.identityCode}
+                    size={200}
+                    color={theme.colors.text}
+                    backgroundColor="transparent"
+                  />
+                )}
+              </View>
+              
+              <Text style={[styles.qrName, { color: theme.colors.text }]}>{user?.fullName}</Text>
+              <Text style={[styles.qrSubtitle, { color: theme.colors.textSecondary }]}>
+                Comparte este código para que te agreguen como colaborador
+              </Text>
+              
+              <View style={[styles.qrIdBadge, { backgroundColor: theme.colors.primary + '15' }]}>
+                <Text style={[styles.qrIdText, { color: theme.colors.primary }]}>{user?.identityCode}</Text>
+              </View>
+            </Animated.View>
+          </Pressable>
+        </Modal>
       </ThemedView>
     </SafeAreaView>
   );
@@ -307,5 +381,82 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginLeft: 12,
+  },
+  qrHeaderButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  idContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  idLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginRight: 4,
+  },
+  idText: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  qrModalContent: {
+    width: '100%',
+    maxWidth: 340,
+    padding: 24,
+    borderRadius: 30,
+    alignItems: 'center',
+  },
+  qrHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 24,
+  },
+  qrTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  qrCodeContainer: {
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    marginBottom: 20,
+  },
+  qrName: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  qrSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 10,
+  },
+  qrIdBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  qrIdText: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 2,
   },
 });

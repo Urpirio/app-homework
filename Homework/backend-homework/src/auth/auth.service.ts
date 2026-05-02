@@ -20,6 +20,12 @@ export class AuthService {
   }
 
   async login(user: any) {
+    // Auto-generar identityCode si el usuario no tiene uno (usuarios legacy)
+    let identityCode = user.identityCode;
+    if (!identityCode) {
+      identityCode = await this.usersService.generateIdentityCode(user.id);
+    }
+
     const payload = { email: user.email, sub: user.id, role: user.role };
     return {
       access_token: this.jwtService.sign(payload),
@@ -29,7 +35,7 @@ export class AuthService {
         fullName: user.fullName,
         role: user.role,
         avatarUrl: user.avatarUrl,
-        identityCode: user.identityCode,
+        identityCode,
       }
     };
   }
@@ -57,10 +63,17 @@ export class AuthService {
   }
 
   async getProfile(userId: string) {
-    const user = await this.usersService.findById(userId);
+    let user = await this.usersService.findById(userId);
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
+
+    // Auto-generar identityCode si el usuario no tiene uno (usuarios legacy)
+    if (!user.identityCode) {
+      const identityCode = await this.usersService.generateIdentityCode(userId);
+      user = { ...user, identityCode };
+    }
+
     const stats = await this.usersService.getUserStats(userId);
     const { password, ...result } = user;
     return { ...result, stats };
