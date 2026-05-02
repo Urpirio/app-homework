@@ -36,7 +36,7 @@ import { useCallback, useState } from 'react';
  * or undefined if the field is valid.
  */
 export interface ValidationRules<T> {
-  [key: string]: (value: string) => string | undefined;
+  [key: string]: (value: string, allValues: T) => string | undefined;
 }
 
 /**
@@ -158,7 +158,7 @@ export function useFormValidation<T extends Record<string, any>>(
     Object.keys(validationRules).forEach((field) => {
       const validator = validationRules[field];
       const value = values[field] as string;
-      const error = validator(value);
+      const error = validator(value, values);
 
       if (error) {
         newErrors[field] = error;

@@ -14,7 +14,7 @@ export class EmailService {
   async sendVerificationCode(email: string, code: string) {
     try {
       await this.resend.emails.send({
-        from: 'App Homework <onboarding@resend.dev>', // Usar dominio verificado en producción
+        from: 'App Homework <Soport@urpiriodev.com.do>', // Usar dominio verificado en producción
         to: email,
         subject: 'Verifica tu cuenta - App Homework',
         html: `
@@ -39,7 +39,7 @@ export class EmailService {
   async sendPasswordResetCode(email: string, code: string) {
     try {
       await this.resend.emails.send({
-        from: 'App Homework <onboarding@resend.dev>',
+        from: 'App Homework <Soport@urpiriodev.com.do>',
         to: email,
         subject: 'Recupera tu contraseña - App Homework',
         html: `
