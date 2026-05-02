@@ -33,22 +33,27 @@ export default function CollaboratorProfile() {
 
   const [commonProjects, setCommonProjects] = useState<any[]>([]);
   const [sharedFiles, setSharedFiles] = useState<any[]>([]);
+  const [collaboratorStats, setCollaboratorStats] = useState({ projects: 0, tasks: 0 });
   const [loading, setLoading] = useState(true);
 
   const fetchProfileData = async () => {
     try {
       setLoading(true);
-      const [projectsRes, filesRes] = await Promise.all([
+      const [projectsRes, filesRes, profileRes] = await Promise.all([
         api.get(`/collaborators/${id}/common-projects`),
         api.get(`/messages/${id}/files`),
+        api.get(`/collaborators/${id}/profile`),
       ]);
-
+      
       const allProjects = [
         ...(projectsRes.data.userProjects || []).map((p: any) => ({ ...p, status: 'En curso' })),
         ...(projectsRes.data.collabProjects || []).map((p: any) => ({ ...p, status: 'En curso' })),
       ];
       setCommonProjects(allProjects);
       setSharedFiles(filesRes.data || []);
+      if (profileRes.data.stats) {
+        setCollaboratorStats(profileRes.data.stats);
+      }
     } catch (error) {
       console.error('Error fetching profile data:', error);
     } finally {
@@ -100,12 +105,12 @@ export default function CollaboratorProfile() {
           
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.colors.text }]}>12</Text>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{collaboratorStats.tasks}</Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Tareas</Text>
             </View>
             <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.colors.text }]}>{commonProjects.length}</Text>
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{collaboratorStats.projects}</Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Proyectos</Text>
             </View>
           </View>
@@ -120,18 +125,22 @@ export default function CollaboratorProfile() {
                 <Animated.View 
                   key={project.id}
                   entering={FadeInDown.delay(index * 150).duration(500)}
-                  style={[styles.projectCard, { backgroundColor: theme.colors.card }]}
                 >
-                  <View style={[styles.projectIndicator, { backgroundColor: project.color }]} />
-                  <View style={styles.projectContent}>
-                    <Text style={[styles.projectTitle, { color: theme.colors.text }]}>{project.name}</Text>
-                    <View style={styles.statusRow}>
-                      <View style={[styles.statusDot, { backgroundColor: project.color }]} />
-                      <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>{project.status}</Text>
+                  <TouchableOpacity 
+                    style={[styles.projectCard, { backgroundColor: theme.colors.card }]}
+                    onPress={() => router.push(`/projects/${project.id}`)}
+                  >
+                    <View style={[styles.projectIndicator, { backgroundColor: project.color }]} />
+                    <View style={styles.projectContent}>
+                      <Text style={[styles.projectTitle, { color: theme.colors.text }]}>{project.name}</Text>
+                      <View style={styles.statusRow}>
+                        <View style={[styles.statusDot, { backgroundColor: project.color }]} />
+                        <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>{project.status}</Text>
+                      </View>
                     </View>
-                  </View>
-                  <TouchableOpacity style={styles.viewProjectBtn}>
-                    <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+                    <View style={styles.viewProjectBtn}>
+                      <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+                    </View>
                   </TouchableOpacity>
                 </Animated.View>
               ))
@@ -158,32 +167,63 @@ export default function CollaboratorProfile() {
           </View>
           
           <View style={styles.sharedFilesContent}>
-            {/* Images Grid Snippet */}
-            <View style={styles.imagesRow}>
-              {sharedFiles.filter((f: any) => f.mimeType?.startsWith('image/')).length > 0 ? (
-                sharedFiles.filter((f: any) => f.mimeType?.startsWith('image/')).slice(0, 3).map((file: any, index: number) => (
-                  <Image key={file.id || index} source={{ uri: getFullUrl(file.fileUrl) }} style={styles.imagePlaceholder} />
-                ))
-              ) : (
-                <View style={[styles.emptyFilesBox, { backgroundColor: theme.colors.card }]}>
-                  <Ionicons name="images-outline" size={24} color={theme.colors.textSecondary} />
-                  <Text style={[styles.emptyFilesText, { color: theme.colors.textSecondary }]}>Sin imágenes compartidas</Text>
-                </View>
-              )}
-            </View>
-            
-            {/* Documents List */}
-            <View style={styles.docItemsList}>
-              {sharedFiles.filter((f: any) => !f.mimeType?.startsWith('image/')).slice(0, 2).map((file: any, index: number) => (
-                <TouchableOpacity key={file.id || index} style={[styles.docItem, { backgroundColor: theme.colors.card, marginTop: index > 0 ? 8 : 0 }]}>
-                  <Ionicons name="document-text" size={20} color={theme.colors.primary} />
-                  <Text style={[styles.docItemText, { color: theme.colors.text }]} numberOfLines={1}>{file.fileName}</Text>
-                </TouchableOpacity>
-              ))}
-              {sharedFiles.filter((f: any) => !f.mimeType?.startsWith('image/')).length === 0 && (
-                <Text style={[{ color: theme.colors.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 10 }]}>Sin documentos compartidos aún</Text>
-              )}
-            </View>
+            {sharedFiles.length > 0 ? (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={styles.filesScrollContainer}
+              >
+                {sharedFiles.slice(0, 5).map((file: any, index: number) => (
+                  <TouchableOpacity 
+                    key={file.id || index} 
+                    style={[styles.fileCardDetailed, { backgroundColor: theme.colors.card }]}
+                    onPress={() => router.push({
+                      pathname: '/collaborator/files/[id]',
+                      params: { id, name }
+                    })}
+                  >
+                    <View style={styles.fileCardPreview}>
+                      {file.mimeType?.startsWith('image/') ? (
+                        <Image source={{ uri: getFullUrl(file.fileUrl) }} style={styles.fileCardImage} />
+                      ) : (
+                        <View style={[styles.fileCardIconBox, { backgroundColor: theme.colors.primary + '10' }]}>
+                          <Ionicons 
+                            name={file.mimeType?.includes('pdf') ? "document-text" : "file-tray-full"} 
+                            size={32} 
+                            color={theme.colors.primary} 
+                          />
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.fileCardInfo}>
+                      <Text style={[styles.fileCardName, { color: theme.colors.text }]} numberOfLines={1}>
+                        {file.fileName || 'Archivo'}
+                      </Text>
+                      <Text style={[styles.fileCardType, { color: theme.colors.textSecondary }]}>
+                        {file.mimeType?.split('/')[1]?.toUpperCase() || 'FILE'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                {sharedFiles.length > 5 && (
+                  <TouchableOpacity 
+                    style={[styles.seeAllFilesCard, { backgroundColor: theme.colors.primaryLight }]}
+                    onPress={() => router.push({
+                      pathname: '/collaborator/files/[id]',
+                      params: { id, name }
+                    })}
+                  >
+                    <Ionicons name="arrow-forward-circle" size={32} color={theme.colors.primary} />
+                    <Text style={[styles.seeAllFilesText, { color: theme.colors.primary }]}>Ver todos</Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            ) : (
+              <View style={[styles.emptyFilesBox, { backgroundColor: theme.colors.card }]}>
+                <Ionicons name="folder-open-outline" size={24} color={theme.colors.textSecondary} />
+                <Text style={[styles.emptyFilesText, { color: theme.colors.textSecondary }]}>Sin archivos compartidos</Text>
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -332,52 +372,70 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  sharedFilesContent: {
+  filesScrollContainer: {
+    paddingRight: 20,
     gap: 16,
   },
-  imagesRow: {
-    flexDirection: 'row',
-    gap: 10,
+  fileCardDetailed: {
+    width: 150,
+    borderRadius: 20,
+    overflow: 'hidden',
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  imagePlaceholder: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: 12,
-  },
-  docItemsList: {
-    marginTop: 4,
-  },
-  docItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    gap: 10,
-  },
-  docItemText: {
-    fontSize: 14,
-    fontWeight: '500',
-    flex: 1,
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 10,
-    fontStyle: 'italic',
-  },
-  emptyFilesBox: {
-    flex: 1,
+  fileCardPreview: {
+    width: '100%',
     height: 100,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  fileCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fileCardIconBox: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fileCardInfo: {
+    paddingHorizontal: 2,
+  },
+  fileCardName: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  fileCardType: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  seeAllFilesCard: {
+    width: 120,
+    height: 156,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-    borderStyle: 'dashed',
     gap: 8,
   },
-  emptyFilesText: {
+  seeAllFilesText: {
     fontSize: 13,
+    fontWeight: '800',
+  },
+  emptyFilesBox: {
+    width: '100%',
+    padding: 30,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  emptyFilesText: {
+    fontSize: 14,
     fontWeight: '600',
   },
 });

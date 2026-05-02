@@ -97,8 +97,17 @@ export default function ChatScreen() {
           } : undefined,
         }));
         setMessages(mapped);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error loading messages:', error);
+        if (error?.response?.status === 403) {
+          Toast.show({
+            type: 'error',
+            text1: 'Acceso denegado',
+            text2: error?.response?.data?.message || 'No tienes permiso para chatear con este usuario.',
+            position: 'top'
+          });
+          router.back();
+        }
       } finally {
         setLoadingMessages(false);
       }
@@ -163,7 +172,7 @@ export default function ChatScreen() {
         type: 'error',
         text1: 'Error',
         text2: error?.response?.data?.message || 'No se pudo enviar el mensaje.',
-        position: 'bottom'
+        position: 'top'
       });
     }
   };
@@ -249,7 +258,7 @@ export default function ChatScreen() {
       type: 'success',
       text1: 'Copiado',
       text2: 'Texto copiado al portapapeles',
-      position: 'bottom',
+      position: 'top',
     });
     setMessageOptionsVisible(false);
   };

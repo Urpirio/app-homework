@@ -51,7 +51,7 @@ export default function QRScannerScreen() {
       type: 'success',
       text1: 'Código escaneado',
       text2: `Buscando usuario: ${data}`,
-      position: 'bottom'
+      position: 'top'
     });
   };
 

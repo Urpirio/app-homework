@@ -14,7 +14,9 @@ import {
   ScrollView,
   Pressable,
   ActivityIndicator,
-  Alert
+  Alert,
+  TouchableOpacity,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { 
@@ -56,35 +58,6 @@ export default function ProjectDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [addCollabModalVisible, setAddCollabModalVisible] = useState(false);
   
-  // FAB Expansion State
-  const [isFabOpen, setIsFabOpen] = useState(false);
-  const fabAnim = useSharedValue(0);
-
-  const toggleFab = () => {
-    const toValue = isFabOpen ? 0 : 1;
-    fabAnim.value = withTiming(toValue, { duration: 300 });
-    setIsFabOpen(!isFabOpen);
-  };
-
-  const taskButtonStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: fabAnim.value },
-      { translateY: withTiming(fabAnim.value * -70, { duration: 300 }) }
-    ],
-    opacity: withTiming(fabAnim.value, { duration: 200 }),
-  }));
-
-  const collabButtonStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: fabAnim.value },
-      { translateY: withTiming(fabAnim.value * -130, { duration: 400 }) }
-    ],
-    opacity: withTiming(fabAnim.value, { duration: 300 }),
-  }));
-
-  const mainFabStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: withTiming(isFabOpen ? '45deg' : '0deg') }]
-  }));
 
   const fetchProjectData = async () => {
     if (!project) setLoading(true);
@@ -346,50 +319,16 @@ export default function ProjectDetailScreen() {
           </View>
         </ScrollView>
 
-        {/* Expandable FAB */}
-        <View style={styles.fabContainer}>
-          <Animated.View style={[styles.subFab, collabButtonStyle, { backgroundColor: theme.colors.card }]}>
-            <Pressable 
-              onPress={() => {
-                toggleFab();
-                setAddCollabModalVisible(true);
-              }}
-              style={styles.subFabInner}
-            >
-              <Ionicons name="people" size={24} color={theme.colors.primary} />
-            </Pressable>
-            <Animated.View style={[styles.fabLabel, { backgroundColor: theme.colors.card }]}>
-              <Text style={[styles.fabLabelText, { color: theme.colors.text }]}>Colaborador</Text>
-            </Animated.View>
-          </Animated.View>
-
-          {/* Add Task Button */}
-          <Animated.View style={[styles.subFab, taskButtonStyle, { backgroundColor: theme.colors.card }]}>
-            <Pressable 
-              onPress={() => {
-                toggleFab();
-                setEditingTask(null);
-                setTaskModalVisible(true);
-              }}
-              style={styles.subFabInner}
-            >
-              <Ionicons name="list" size={24} color={theme.colors.primary} />
-            </Pressable>
-            <Animated.View style={[styles.fabLabel, { backgroundColor: theme.colors.card }]}>
-              <Text style={[styles.fabLabelText, { color: theme.colors.text }]}>Nueva Tarea</Text>
-            </Animated.View>
-          </Animated.View>
-
-          {/* Main FAB */}
-          <Pressable 
-            style={[styles.mainFab, { backgroundColor: theme.colors.primary }]}
-            onPress={toggleFab}
-          >
-            <Animated.View style={mainFabStyle}>
-              <Ionicons name="add" size={32} color="#FFFFFF" />
-            </Animated.View>
-          </Pressable>
-        </View>
+        {/* Simple FAB for New Task */}
+        <TouchableOpacity 
+          style={[styles.mainFab, { backgroundColor: theme.colors.primary, position: 'absolute', bottom: 30, right: 30 }]}
+          onPress={() => {
+            setEditingTask(null);
+            setTaskModalVisible(true);
+          }}
+        >
+          <Ionicons name="add" size={32} color="#FFFFFF" />
+        </TouchableOpacity>
 
         {/* Modales */}
         <TaskModal 
@@ -591,52 +530,17 @@ const styles = StyleSheet.create({
     marginTop: 20,
     fontStyle: 'italic',
   },
-  fabContainer: {
-    position: 'absolute',
-    bottom: 30,
-    right: 30,
-    width: 60,
-    height: 250,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    zIndex: 999,
-  },
   mainFab: {
     width: 60,
     height: 60,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
-  },
-  subFab: {
-    position: 'absolute',
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 5,
-  },
-  subFabInner: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fabLabel: {
-    position: 'absolute',
-    right: 65,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-    minWidth: 120,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  fabLabelText: {
-    fontSize: 12,
-    fontWeight: '700',
+    zIndex: 999,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
   },
 });

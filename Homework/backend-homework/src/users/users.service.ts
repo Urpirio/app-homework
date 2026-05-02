@@ -32,11 +32,16 @@ export class UsersService {
   }
 
   async getUserStats(userId: string) {
-    const [projects, tasks] = await Promise.all([
+    const [ownedProjects, memberProjects, ownedTasks, memberTasks] = await Promise.all([
       this.prisma.project.count({ where: { userId } }),
+      this.prisma.project.count({ where: { members: { some: { userId } } } }),
       this.prisma.task.count({ where: { project: { userId } } }),
+      this.prisma.task.count({ where: { project: { members: { some: { userId } } } } }),
     ]);
-    return { projects, tasks };
+    return { 
+      projects: ownedProjects + memberProjects, 
+      tasks: ownedTasks + memberTasks 
+    };
   }
 
   async findByIdentityCode(code: string): Promise<User | null> {

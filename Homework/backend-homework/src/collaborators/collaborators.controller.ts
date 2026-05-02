@@ -42,4 +42,9 @@ export class CollaboratorsController {
   getCommonProjects(@Request() req: any, @Param('id') collaboratorId: string) {
     return this.collaboratorsService.getCommonProjects(req.user.userId, collaboratorId);
   }
+
+  @Get(':id/profile')
+  getCollaboratorProfile(@Request() req: any, @Param('id') collaboratorId: string) {
+    return this.collaboratorsService.getCollaboratorProfile(collaboratorId);
+  }
 }

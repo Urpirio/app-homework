@@ -89,6 +89,7 @@ export class CollaboratorsService {
         id: c.id,
         status: c.status,
         collaborator: isRequester ? c.addressee : c.requester,
+        isRequester,
         createdAt: c.createdAt,
       };
     });
@@ -168,13 +169,58 @@ export class CollaboratorsService {
   }
 
   async getCommonProjects(userId: string, collaboratorId: string) {
-    // Obtener proyectos de ambos usuarios
-    const [userProjects, collabProjects] = await Promise.all([
-      this.prisma.project.findMany({ where: { userId }, select: { name: true, id: true, color: true, updatedAt: true } }),
-      this.prisma.project.findMany({ where: { userId: collaboratorId }, select: { name: true, id: true, color: true, updatedAt: true } }),
-    ]);
+    // Proyectos donde userId es dueño y collaboratorId es miembro
+    const userProjects = await this.prisma.project.findMany({
+      where: {
+        userId,
+        members: { some: { userId: collaboratorId } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    // Proyectos donde collaboratorId es dueño y userId es miembro
+    const collabProjects = await this.prisma.project.findMany({
+      where: {
+        userId: collaboratorId,
+        members: { some: { userId } },
+      },
+      include: { user: { select: { fullName: true } } },
+      orderBy: { updatedAt: 'desc' },
+    });
 
     return { userProjects, collabProjects };
+  }
+
+  async getCollaboratorProfile(collaboratorId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: collaboratorId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        avatarUrl: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Colaborador no encontrado');
+    }
+
+    const [ownedProjects, memberProjects, ownedTasks, memberTasks] = await Promise.all([
+      this.prisma.project.count({ where: { userId: collaboratorId } }),
+      this.prisma.project.count({ where: { members: { some: { userId: collaboratorId } } } }),
+      this.prisma.task.count({ where: { project: { userId: collaboratorId } } }),
+      this.prisma.task.count({ where: { project: { members: { some: { userId: collaboratorId } } } } }),
+    ]);
+
+    return {
+      ...user,
+      stats: {
+        projects: ownedProjects + memberProjects,
+        tasks: ownedTasks + memberTasks,
+      },
+    };
   }
 
   async findByIdentityCode(identityCode: string) {

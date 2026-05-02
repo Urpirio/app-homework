@@ -81,23 +81,24 @@ export default function CollaboratorsScreen() {
   const fetchCollaborators = async () => {
     try {
       setLoading(true);
-      const endpoint = projectId ? `/projects/${projectId}/collaborators` : '/collaborators';
+      const endpoint = projectId ? `/projects/${projectId}/members` : '/collaborators';
       const collabsRes = await api.get(endpoint);
 
-      // Si es filtrado por proyecto, la estructura de datos podría variar un poco
-      // El backend usualmente devuelve una lista de usuarios en este caso
-      const data = projectId ? collabsRes.data : collabsRes.data;
+      const data = collabsRes.data;
       
       const mapped = data.map((c: any) => {
-        // Normalizar estructura si viene de /projects/:id/collaborators o /collaborators
-        const col = c.collaborator || c;
+        // Si viene de /projects/:id/members, el usuario está en c.user
+        // Si viene de /collaborators, el usuario está en c.collaborator
+        const col = c.collaborator || c.user || c;
         return {
           id: col.id,
           collaborationId: c.id,
           name: col.fullName || col.name,
-          role: col.role || 'Colaborador',
+          role: col.role || c.role || 'Colaborador',
           avatar: col.avatarUrl,
-          status: c.status === 'ACTIVE' || !projectId ? 'active' : 'pending',
+          // Los miembros de proyecto son activos por defecto
+          status: (projectId || c.status === 'ACTIVE') ? 'active' : 'pending',
+          isRequester: c.isRequester,
         };
       });
       setCollaborators(mapped);
@@ -130,7 +131,7 @@ export default function CollaboratorsScreen() {
         type: 'error',
         text1: 'No encontrado',
         text2: `No existe un usuario con el código "${code}"`,
-        position: 'bottom'
+        position: 'top'
       });
       if (codeToSearch) setIsAddModalVisible(false);
     } finally {
@@ -170,7 +171,7 @@ export default function CollaboratorsScreen() {
         type: 'error',
         text1: 'Error',
         text2: error?.response?.data?.message || 'No se pudo enviar la solicitud.',
-        position: 'bottom'
+        position: 'top'
       });
     }
   };
@@ -253,7 +254,7 @@ export default function CollaboratorsScreen() {
                             type: 'info',
                             text1: 'Solicitud pendiente',
                             text2: 'Debes esperar a que confirme tu solicitud.',
-                            position: 'bottom'
+                            position: 'top'
                           });
                           return;
                         }
@@ -278,7 +279,9 @@ export default function CollaboratorsScreen() {
                           <Text style={[styles.name, { color: theme.colors.text }]}>{collab.name}</Text>
                           {collab.status === 'pending' && (
                             <View style={[styles.pendingBadge, { backgroundColor: theme.colors.primaryLight }]}>
-                              <Text style={[styles.pendingText, { color: theme.colors.primary }]}>Pendiente</Text>
+                              <Text style={[styles.pendingText, { color: theme.colors.primary }]}>
+                                {collab.isRequester ? 'Pendiente' : 'Por Aceptar'}
+                              </Text>
                             </View>
                           )}
                         </View>
@@ -367,6 +370,15 @@ export default function CollaboratorsScreen() {
                   <TouchableOpacity 
                     style={[styles.quickActionBtn, { backgroundColor: theme.colors.primaryLight }]}
                     onPress={() => {
+                      if (selectedCollab.status === 'pending') {
+                        Toast.show({
+                          type: 'info',
+                          text1: 'Solicitud pendiente',
+                          text2: 'Debes esperar a que se confirme la solicitud.',
+                          position: 'top'
+                        });
+                        return;
+                      }
                       setIsModalVisible(false);
                       router.push({
                         pathname: '/chat/[id]',
@@ -374,13 +386,14 @@ export default function CollaboratorsScreen() {
                       });
                     }}
                   >
-                    <Ionicons name="chatbubble" size={22} color={theme.colors.primary} />
-                    <Text style={[styles.quickActionText, { color: theme.colors.primary }]}>Chat</Text>
+                    <Ionicons name="chatbubble" size={22} color={selectedCollab.status === 'pending' ? theme.colors.textSecondary : theme.colors.primary} />
+                    <Text style={[styles.quickActionText, { color: selectedCollab.status === 'pending' ? theme.colors.textSecondary : theme.colors.primary }]}>Chat</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity 
-                    style={[styles.quickActionBtn, { backgroundColor: theme.colors.primaryLight }]}
+                    style={[styles.quickActionBtn, { backgroundColor: theme.colors.primaryLight, opacity: selectedCollab.status === 'pending' ? 0.5 : 1 }]}
                     onPress={() => {
+                      if (selectedCollab.status === 'pending') return;
                       setIsModalVisible(false);
                       router.push({
                         pathname: '/collaborator/files/[id]',
@@ -388,8 +401,8 @@ export default function CollaboratorsScreen() {
                       });
                     }}
                   >
-                    <Ionicons name="folder" size={22} color={theme.colors.primary} />
-                    <Text style={[styles.quickActionText, { color: theme.colors.primary }]}>Archivos</Text>
+                    <Ionicons name="folder" size={22} color={selectedCollab.status === 'pending' ? theme.colors.textSecondary : theme.colors.primary} />
+                    <Text style={[styles.quickActionText, { color: selectedCollab.status === 'pending' ? theme.colors.textSecondary : theme.colors.primary }]}>Archivos</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity 

@@ -14,6 +14,7 @@ import {
   View, 
   Dimensions, 
   Pressable,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -55,7 +56,7 @@ export default function NotificationsScreen() {
   const handleAcceptRequest = async (requestId: string) => {
     try {
       await api.patch(`/collaborators/${requestId}/accept`);
-      Toast.show({ type: 'success', text1: '¡Aceptado!', text2: 'Ahora puedes colaborar.', position: 'bottom' });
+      Toast.show({ type: 'success', text1: '¡Aceptado!', text2: 'Ahora puedes colaborar.', position: 'top' });
       fetchNotifications();
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo aceptar.' });

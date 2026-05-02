@@ -39,7 +39,7 @@ export default function ProfileScreen() {
       type: 'success',
       text1: 'Copiado',
       text2: 'Código de identidad copiado al portapapeles',
-      position: 'bottom'
+      position: 'top'
     });
   };
 
