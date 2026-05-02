@@ -22,7 +22,7 @@ export class AuthController {
 
   @Post('verify-code')
   async verifyCode(@Body() body: any) {
-    return this.authService.verifyCode(body.email, body.code);
+    return this.authService.verifyCode(body.email, body.code, body.isReset);
   }
 
   @Post('forgot-password')

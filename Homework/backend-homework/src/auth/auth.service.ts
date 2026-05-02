@@ -79,7 +79,7 @@ export class AuthService {
     return { ...result, identityCode };
   }
 
-  async verifyCode(email: string, code: string) {
+  async verifyCode(email: string, code: string, isReset: boolean = false) {
     const user = await this.usersService.findOne(email);
     if (!user) {
       throw new BadRequestException('Usuario no encontrado');
@@ -93,13 +93,15 @@ export class AuthService {
       throw new BadRequestException('El código ha expirado');
     }
 
-    await this.usersService.update(user.id, {
-      isVerified: true,
-      verificationCode: null,
-      verificationCodeExpires: null,
-    });
+    if (!isReset) {
+      await this.usersService.update(user.id, {
+        isVerified: true,
+        verificationCode: null,
+        verificationCodeExpires: null,
+      });
+    }
 
-    return { message: 'Cuenta verificada con éxito' };
+    return { message: 'Código verificado con éxito' };
   }
 
   async forgotPassword(email: string) {

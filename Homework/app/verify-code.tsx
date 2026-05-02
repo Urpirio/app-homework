@@ -60,10 +60,10 @@ export default function VerifyCodeScreen() {
     try {
       setIsLoading(true);
       
-      const verificationCode = code.join('');
       await api.post('/auth/verify-code', { 
         email, 
-        code: verificationCode 
+        code: verificationCode,
+        isReset: type === 'forgot'
       });
 
       if (type === 'forgot') {
