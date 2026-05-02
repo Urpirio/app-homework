@@ -141,6 +141,7 @@ export class AuthService {
 
     await this.usersService.update(user.id, {
       password: hashedPassword,
+      isVerified: true,
       verificationCode: null,
       verificationCodeExpires: null,
     });

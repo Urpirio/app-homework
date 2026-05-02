@@ -18,6 +18,7 @@ import { KeyboardAvoidingContainer } from '@/components/shared/KeyboardAvoidingC
 import { ErrorMessage } from '@/components/login/ErrorMessage';
 import { validatePassword } from '@/utils/validation';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import api from '@/utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
