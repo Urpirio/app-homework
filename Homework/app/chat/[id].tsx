@@ -31,6 +31,8 @@ import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '@/utils/api';
 import * as SecureStore from 'expo-secure-store';
+import { BaseModal } from '@/components/shared/BaseModal';
+import { ConfirmModal } from '@/components/shared/ConfirmModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -72,8 +74,10 @@ export default function ChatScreen() {
   const [isMessageOptionsVisible, setMessageOptionsVisible] = useState(false);
   const [selectedMessageText, setSelectedMessageText] = useState('');
   
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loadingMessages, setLoadingMessages] = useState(true);
+   const [messages, setMessages] = useState<Message[]>([]);
+   const [loadingMessages, setLoadingMessages] = useState(true);
+   const [optionsVisible, setOptionsVisible] = useState(false);
+   const [confirmClearVisible, setConfirmClearVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
 
@@ -172,6 +176,29 @@ export default function ChatScreen() {
         type: 'error',
         text1: 'Error',
         text2: error?.response?.data?.message || 'No se pudo enviar el mensaje.',
+        position: 'top'
+      });
+    }
+  };
+
+  const handleClearChat = async () => {
+    try {
+      await api.delete(`/messages/${id}`);
+      setMessages([]);
+      setConfirmClearVisible(false);
+      setOptionsVisible(false);
+      Toast.show({
+        type: 'success',
+        text1: 'Chat vaciado',
+        text2: 'Se ha eliminado el historial de mensajes.',
+        position: 'top'
+      });
+    } catch (error) {
+      console.error('Error clearing chat:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'No se pudo vaciar el chat.',
         position: 'top'
       });
     }
@@ -423,7 +450,7 @@ export default function ChatScreen() {
             </View>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.moreButton}>
+          <TouchableOpacity style={styles.moreButton} onPress={() => setOptionsVisible(true)}>
             <Ionicons name="ellipsis-vertical" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -469,6 +496,35 @@ export default function ChatScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Options Modal */}
+        <BaseModal visible={optionsVisible} onClose={() => setOptionsVisible(false)}>
+          <View style={styles.optionsContainer}>
+            <TouchableOpacity 
+              style={styles.optionItem}
+              onPress={() => {
+                setOptionsVisible(false);
+                setConfirmClearVisible(true);
+              }}
+            >
+              <View style={[styles.optionIcon, { backgroundColor: '#FF3B3015' }]}>
+                <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+              </View>
+              <Text style={[styles.optionText, { color: '#FF3B30' }]}>Vaciar historial de chat</Text>
+            </TouchableOpacity>
+          </View>
+        </BaseModal>
+
+        {/* Confirm Clear Modal */}
+        <ConfirmModal
+          visible={confirmClearVisible}
+          title="¿Vaciar chat?"
+          message="Esta acción eliminará todos los mensajes de esta conversación permanentemente. No se puede deshacer."
+          confirmText="Vaciar Chat"
+          onClose={() => setConfirmClearVisible(false)}
+          onConfirm={handleClearChat}
+          danger
+        />
       </KeyboardAvoidingView>
 
       {/* Attachment Modal */}
@@ -911,5 +967,15 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  optionsContainer: {
+    paddingVertical: 10,
+  },
+  optionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

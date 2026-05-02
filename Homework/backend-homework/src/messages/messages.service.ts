@@ -101,4 +101,15 @@ export class MessagesService {
 
     return attachments;
   }
+
+  async clearChat(userId: string, collaboratorId: string) {
+    return this.prisma.message.deleteMany({
+      where: {
+        OR: [
+          { senderId: userId, receiverId: collaboratorId },
+          { senderId: collaboratorId, receiverId: userId },
+        ],
+      },
+    });
+  }
 }
