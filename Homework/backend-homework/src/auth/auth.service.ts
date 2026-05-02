@@ -72,4 +72,25 @@ export class AuthService {
     const { password, ...result } = updatedUser;
     return result;
   }
+
+  async changePassword(userId: string, data: any) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('Usuario no encontrado');
+    }
+
+    const isMatch = await bcrypt.compare(data.currentPassword, user.password);
+    if (!isMatch) {
+      throw new UnauthorizedException('La contraseña actual es incorrecta');
+    }
+
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash(data.newPassword, salt);
+
+    await this.usersService.update(userId, {
+      password: hashedPassword,
+    });
+
+    return { message: 'Contraseña actualizada correctamente' };
+  }
 }

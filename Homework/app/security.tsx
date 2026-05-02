@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ConfirmModal } from '@/components/shared/ConfirmModal';
+import * as SecureStore from 'expo-secure-store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -34,9 +35,23 @@ export default function SecurityScreen() {
   
   // State for toggles
   const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(false);
-  const [isBiometricEnabled, setIsBiometricEnabled] = useState(true);
+  const [isBiometricEnabled, setIsBiometricEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
+
+  React.useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    const biometric = await SecureStore.getItemAsync('isBiometricEnabled');
+    setIsBiometricEnabled(biometric === 'true');
+  };
+
+  const handleToggleBiometrics = async (value: boolean) => {
+    setIsBiometricEnabled(value);
+    await SecureStore.setItemAsync('isBiometricEnabled', value ? 'true' : 'false');
+  };
 
   const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;
 
@@ -65,15 +80,26 @@ export default function SecurityScreen() {
 
   const handleConfirmUpdate = async () => {
     setIsLoading(true);
-    // Simular guardado
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    
-    alert('Contraseña actualizada con éxito');
+    try {
+      await api.patch('/auth/change-password', {
+        currentPassword,
+        newPassword
+      });
+      
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setConfirmVisible(false);
+      
+      Alert.alert('Éxito', 'Contraseña actualizada con éxito');
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      const msg = error.response?.data?.message || 'No se pudo actualizar la contraseña. Verifica tu contraseña actual.';
+      setError(Array.isArray(msg) ? msg[0] : msg);
+      setConfirmVisible(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -147,7 +173,7 @@ export default function SecurityScreen() {
                   label="Autenticación Biométrica" 
                   description="Usa FaceID o Huella para entrar"
                   value={isBiometricEnabled}
-                  onToggle={setIsBiometricEnabled}
+                  onToggle={handleToggleBiometrics}
                 />
 
                 <SecurityToggle 

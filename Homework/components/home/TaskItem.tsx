@@ -9,9 +9,11 @@ interface TaskItemProps {
   task: Task;
   index: number;
   onToggle?: () => void;
+  onPress?: () => void;
+  onLongPress?: () => void;
 }
 
-export const TaskItem = ({ task, index, onToggle }: TaskItemProps) => {
+export const TaskItem = ({ task, index, onToggle, onPress, onLongPress }: TaskItemProps) => {
   const { theme } = useTheme();
 
   const isDone = task.status?.toLowerCase() === 'done';
@@ -43,10 +45,13 @@ export const TaskItem = ({ task, index, onToggle }: TaskItemProps) => {
   return (
     <Animated.View entering={FadeInLeft.delay(index * 50)}>
       <Pressable 
-        onPress={onToggle}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={500}
         style={[styles.container, { backgroundColor: theme.colors.card }]}
       >
-        <View 
+        <Pressable 
+          onPress={onToggle}
           style={[
             styles.checkbox, 
             { 
@@ -56,7 +61,7 @@ export const TaskItem = ({ task, index, onToggle }: TaskItemProps) => {
           ]}
         >
           {isDone && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-        </View>
+        </Pressable>
 
         <View style={styles.content}>
           <Text 

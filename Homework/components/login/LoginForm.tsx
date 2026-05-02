@@ -11,6 +11,10 @@ import { ErrorMessage } from './ErrorMessage';
 import { SocialLogin } from './SocialLogin';
 import { useTheme } from '@/hooks/useTheme';
 import { router } from 'expo-router';
+import { BiometricButton } from './BiometricButton';
+import * as SecureStore from 'expo-secure-store';
+import { useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 
 /**
  * Props for the LoginForm component
@@ -27,6 +31,28 @@ export interface LoginFormProps {
 export function LoginForm({ onSubmit }: LoginFormProps) {
   // State for password visibility toggle
   const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [savedToken, setSavedToken] = useState<string | null>(null);
+  const [isBiometricEnabled, setIsBiometricEnabled] = useState(false);
+
+  useEffect(() => {
+    loadSavedSettings();
+  }, []);
+
+  const loadSavedSettings = async () => {
+    const [token, biometric] = await Promise.all([
+      SecureStore.getItemAsync('userToken'),
+      SecureStore.getItemAsync('isBiometricEnabled'),
+    ]);
+    setSavedToken(token);
+    setIsBiometricEnabled(biometric === 'true');
+  };
+
+  const handleBiometricSuccess = async (token: string) => {
+    // Si tenemos token, podemos navegar directamente a home
+    // En una app real, podrías validar el token aquí
+    router.replace('/home');
+  };
 
   // Form validation hook
   const {
@@ -48,6 +74,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
    * Handle form submission
    */
   const handleFormSubmit = async () => {
+    setAuthError(null);
     const isValid = handleSubmit();
 
     if (!isValid) return;
@@ -56,10 +83,19 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
       setLoading(true);
       await onSubmit(values);
       router.replace('/home');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
+      setAuthError(error.message || 'Correo o contraseña incorrectos');
       setLoading(false);
     }
+  };
+
+  /**
+   * Wrapper for handleChange to also clear global auth error
+   */
+  const handleValueChange = (field: keyof LoginCredentials, value: string) => {
+    setAuthError(null);
+    handleChange(field, value);
   };
 
   /**
@@ -76,7 +112,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
       {/* Email Input - Delay: 0ms */}
       <AnimatedInput
         value={values.email}
-        onChangeText={(text) => handleChange('email', text)}
+        onChangeText={(text) => handleValueChange('email', text)}
         placeholder="Correo electrónico"
         error={errors.email}
         keyboardType="email-address"
@@ -92,7 +128,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
       <View style={styles.passwordContainer}>
         <AnimatedInput
           value={values.password}
-          onChangeText={(text) => handleChange('password', text)}
+          onChangeText={(text) => handleValueChange('password', text)}
           placeholder="Contraseña"
           error={errors.password}
           secureTextEntry={true}
@@ -118,6 +154,37 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
         </Animated.View>
       </View>
 
+      {/* Global Auth Error */}
+      {/* <ErrorMessage 
+        message={authError} 
+        visible={!!authError} 
+        style={{ marginBottom: 16 }}
+      /> */}
+
+      {/* <View style={styles.rememberContainer}>
+        <Pressable 
+          onPress={() => {
+            const newValue = !isBiometricEnabled;
+            setIsBiometricEnabled(newValue);
+            SecureStore.setItemAsync('isBiometricEnabled', newValue ? 'true' : 'false');
+          }}
+          style={styles.rememberPressable}
+        >
+          <View style={[
+            styles.checkbox, 
+            { 
+              borderColor: isBiometricEnabled ? theme.colors.primary : theme.colors.border,
+              backgroundColor: isBiometricEnabled ? theme.colors.primary : 'transparent'
+            }
+          ]}>
+            {isBiometricEnabled && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+          </View>
+          <Text style={[styles.rememberText, { color: theme.colors.textSecondary }]}>
+            Recordar sesión con biométricos
+          </Text>
+        </Pressable>
+      </View> */}
+
       {/* Login Button - Delay: 200ms (staggered) */}
       <AnimatedButton
         onPress={handleFormSubmit}
@@ -131,6 +198,13 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
 
       {/* Social Login Section */}
       <SocialLogin />
+
+      {isBiometricEnabled && (
+        <BiometricButton 
+          token={savedToken} 
+          onSuccess={handleBiometricSuccess} 
+        />
+      )}
     </View>
   );
 }
@@ -149,6 +223,26 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  rememberContainer: {
+    marginBottom: 24,
+  },
+  rememberPressable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  rememberText: {
     fontSize: 14,
     fontWeight: '600',
   },

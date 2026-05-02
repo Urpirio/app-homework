@@ -55,7 +55,10 @@ export const ProjectModal = ({ visible, onClose, onSave, initialData }: ProjectM
 
   return (
     <BaseModal visible={visible} onClose={onClose}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <Text style={[styles.title, { color: theme.colors.text }]}>
           {isEditing ? 'Editar Proyecto' : 'Nuevo Proyecto'}
         </Text>
@@ -141,5 +144,8 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     paddingBottom: 20,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
 });

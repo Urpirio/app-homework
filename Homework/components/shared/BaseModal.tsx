@@ -32,7 +32,7 @@ export const BaseModal = ({ visible, onClose, children }: BaseModalProps) => {
         </Animated.View>
 
         <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
           style={styles.keyboardView}
         >
           <Animated.View 
@@ -58,11 +58,15 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     width: '100%',
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   content: {
     padding: 24,
     paddingTop: 12,
     minHeight: 200,
+    maxHeight: '90%',
+    flexShrink: 1,
   },
   handle: {
     width: 40,

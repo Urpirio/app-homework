@@ -2,8 +2,8 @@ import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   ScrollView, 
   StyleSheet, 
@@ -29,6 +29,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async () => {
+    if (!user) setLoading(true);
     try {
       const response = await api.get('/auth/profile');
       setUser(response.data);
@@ -39,9 +40,11 @@ export default function ProfileScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [])
+  );
 
   const handleLogout = async () => {
     try {

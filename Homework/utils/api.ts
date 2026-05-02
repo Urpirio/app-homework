@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL = 'https://backend-homework-production.up.railway.app';
+const API_URL = 'https://app-homework-production.up.railway.app';
 
 const api = axios.create({
   baseURL: API_URL,

@@ -4,14 +4,17 @@ import { ProjectCard } from '@/components/home/ProjectCard';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Project } from '@/types/project';
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, View, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Pressable } from 'react-native';
 import api from '@/utils/api';
 import { ProjectModal } from '@/components/login/ProjectModal';
+import { ProjectActionsModal } from '@/components/login/ProjectActionsModal';
+import { ConfirmModal } from '@/components/shared/ConfirmModal';
+import { Alert } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -53,9 +56,15 @@ export default function HomeScreen() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Modals state
   const [projectModalVisible, setProjectModalVisible] = useState(false);
+  const [actionsVisible, setActionsVisible] = useState(false);
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   const fetchData = async () => {
+    if (projects.length === 0) setLoading(true);
     try {
       const [projectsRes, profileRes] = await Promise.all([
         api.get('/projects'),
@@ -81,17 +90,44 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [])
+  );
 
   const handleSaveProject = async (data: any) => {
     try {
-      await api.post('/projects', data);
+      if (selectedProject) {
+        await api.patch(`/projects/${selectedProject.id}`, data);
+      } else {
+        await api.post('/projects', data);
+      }
       fetchData(); // Recargar todo
       setProjectModalVisible(false);
+      setSelectedProject(null);
     } catch (error) {
       console.error('Error saving project:', error);
+      Alert.alert('Error', 'No se pudo guardar el proyecto.');
+    }
+  };
+
+  const handleLongPressProject = (project: Project) => {
+    setSelectedProject(project);
+    setActionsVisible(true);
+  };
+
+  const handleDeleteConfirmed = async () => {
+    if (selectedProject) {
+      try {
+        await api.delete(`/projects/${selectedProject.id}`);
+        fetchData();
+        setConfirmDeleteVisible(false);
+        setSelectedProject(null);
+      } catch (error) {
+        console.error('Error deleting project:', error);
+        Alert.alert('Error', 'No se pudo eliminar el proyecto.');
+      }
     }
   };
 
@@ -122,7 +158,12 @@ export default function HomeScreen() {
               <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20 }} />
             ) : projects.length > 0 ? (
               projects.map((project, index) => (
-                <ProjectCard key={project.id} project={project} index={index} />
+                <ProjectCard 
+                  key={project.id} 
+                  project={project} 
+                  index={index} 
+                  onLongPress={() => handleLongPressProject(project)}
+                />
               ))
             ) : (
               <View style={styles.emptyContainer}>
@@ -130,7 +171,10 @@ export default function HomeScreen() {
                   No tienes proyectos todavía.
                 </Text>
                 <Pressable 
-                  onPress={() => setProjectModalVisible(true)}
+                  onPress={() => {
+                    setSelectedProject(null);
+                    setProjectModalVisible(true);
+                  }}
                   style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
                 >
                   <Text style={styles.createButtonText}>Crear mi primer proyecto</Text>
@@ -141,8 +185,29 @@ export default function HomeScreen() {
 
           <ProjectModal 
             visible={projectModalVisible}
-            onClose={() => setProjectModalVisible(false)}
+            onClose={() => {
+              setProjectModalVisible(false);
+              setSelectedProject(null);
+            }}
             onSave={handleSaveProject}
+            initialData={selectedProject}
+          />
+
+          <ProjectActionsModal 
+            visible={actionsVisible}
+            onClose={() => setActionsVisible(false)}
+            onEdit={() => setProjectModalVisible(true)}
+            onDelete={() => setConfirmDeleteVisible(true)}
+          />
+
+          <ConfirmModal 
+            visible={confirmDeleteVisible}
+            onClose={() => setConfirmDeleteVisible(false)}
+            onConfirm={handleDeleteConfirmed}
+            title="Eliminar Proyecto"
+            message={`¿Estás seguro de que deseas eliminar "${selectedProject?.name}"?`}
+            isDestructive={true}
+            confirmLabel="Eliminar"
           />
 
           <Animated.View entering={FadeInDown.delay(600)} style={styles.section}>

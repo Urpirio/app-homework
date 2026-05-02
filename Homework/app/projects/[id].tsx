@@ -4,8 +4,8 @@ import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Project, Task } from '@/types/project';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { TaskModal } from '@/components/login/TaskModal';
 import { ProjectActionsModal } from '@/components/login/ProjectActionsModal';
+import { TaskActionsModal } from '@/components/login/TaskActionsModal';
 import { ProjectModal } from '@/components/login/ProjectModal';
 import { ConfirmModal } from '@/components/shared/ConfirmModal';
 import api from '@/utils/api';
@@ -35,12 +36,18 @@ export default function ProjectDetailScreen() {
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [actionsVisible, setActionsVisible] = useState(false);
   
+  // Task actions states
+  const [taskActionsVisible, setTaskActionsVisible] = useState(false);
+  const [confirmDeleteTaskVisible, setConfirmDeleteTaskVisible] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchProjectData = async () => {
+    if (!project) setLoading(true);
     try {
       const response = await api.get(`/projects/${id}`);
       setProject(response.data);
@@ -54,9 +61,11 @@ export default function ProjectDetailScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchProjectData();
-  }, [id]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchProjectData();
+    }, [id])
+  );
 
   const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;
 
@@ -98,6 +107,25 @@ export default function ProjectDetailScreen() {
       console.error('Error deleting project:', error);
       Alert.alert('Error', 'No se pudo eliminar el proyecto.');
     }
+  };
+  
+  const handleDeleteTaskConfirmed = async () => {
+    if (selectedTask) {
+      try {
+        await api.delete(`/tasks/${selectedTask.id}`);
+        setTasks(tasks.filter(t => t.id !== selectedTask.id));
+        setConfirmDeleteTaskVisible(false);
+        setSelectedTask(null);
+      } catch (error) {
+        console.error('Error deleting task:', error);
+        Alert.alert('Error', 'No se pudo eliminar la tarea.');
+      }
+    }
+  };
+
+  const handleLongPressTask = (task: Task) => {
+    setSelectedTask(task);
+    setTaskActionsVisible(true);
   };
 
   const toggleTaskStatus = async (task: Task) => {
@@ -164,37 +192,48 @@ export default function ProjectDetailScreen() {
                   </View>
                 </Animated.View>
 
-                <View style={styles.tasksSection}>
-                  <View style={styles.tasksHeader}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                      Tareas
-                    </Text>
-                    <View style={[styles.taskCount, { backgroundColor: theme.colors.primaryLight }]}>
-                      <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>
-                        {tasks.length}
+                  <View style={styles.tasksSection}>
+                    <View style={styles.tasksHeader}>
+                      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                        Tareas
                       </Text>
+                      <View style={[styles.taskCount, { backgroundColor: theme.colors.primaryLight }]}>
+                        <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>
+                          {tasks.length}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
 
-                  {tasks.length > 0 ? (
-                    tasks.map((task, index) => (
-                      <TaskItem 
-                        key={task.id} 
-                        task={task} 
-                        index={index} 
-                        onToggle={() => toggleTaskStatus(task)}
-                        onPress={() => {
-                          setEditingTask(task);
-                          setTaskModalVisible(true);
-                        }}
-                      />
-                    ))
-                  ) : (
-                    <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                      No hay tareas en este proyecto.
-                    </Text>
-                  )}
-                </View>
+                    {(() => {
+                      const sortedTasks = [...tasks].sort((a, b) => {
+                        const aDone = a.status?.toLowerCase() === 'done';
+                        const bDone = b.status?.toLowerCase() === 'done';
+                        if (aDone && !bDone) return 1;
+                        if (!aDone && bDone) return -1;
+                        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                      });
+
+                      return sortedTasks.length > 0 ? (
+                        sortedTasks.map((task, index) => (
+                          <TaskItem 
+                            key={task.id} 
+                            task={task} 
+                            index={index} 
+                            onToggle={() => toggleTaskStatus(task)}
+                            onPress={() => {
+                              setEditingTask(task);
+                              setTaskModalVisible(true);
+                            }}
+                            onLongPress={() => handleLongPressTask(task)}
+                          />
+                        ))
+                      ) : (
+                        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                          No hay tareas en este proyecto.
+                        </Text>
+                      );
+                    })()}
+                  </View>
               </>
             )}
           </View>
@@ -237,6 +276,27 @@ export default function ProjectDetailScreen() {
           onClose={() => setActionsVisible(false)} 
           onDelete={() => setConfirmDeleteVisible(true)}
           onEdit={() => setProjectModalVisible(true)}
+        />
+        
+        <TaskActionsModal
+          visible={taskActionsVisible}
+          onClose={() => setTaskActionsVisible(false)}
+          onEdit={() => {
+            setEditingTask(selectedTask);
+            setTaskModalVisible(true);
+          }}
+          onDelete={() => setConfirmDeleteTaskVisible(true)}
+          taskTitle={selectedTask?.title}
+        />
+
+        <ConfirmModal 
+          visible={confirmDeleteTaskVisible}
+          onClose={() => setConfirmDeleteTaskVisible(false)}
+          onConfirm={handleDeleteTaskConfirmed}
+          title="Eliminar Tarea"
+          message={`¿Estás seguro de que deseas eliminar la tarea "${selectedTask?.title}"?`}
+          isDestructive={true}
+          confirmLabel="Eliminar"
         />
       </ThemedView>
     </SafeAreaView>

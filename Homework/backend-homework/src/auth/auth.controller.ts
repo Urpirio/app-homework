@@ -31,4 +31,10 @@ export class AuthController {
   updateProfile(@Request() req: any, @Body() updateDto: any) {
     return this.authService.updateProfile(req.user.userId, updateDto);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('change-password')
+  changePassword(@Request() req: any, @Body() body: any) {
+    return this.authService.changePassword(req.user.userId, body);
+  }
 }
