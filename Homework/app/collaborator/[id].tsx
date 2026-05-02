@@ -33,6 +33,7 @@ export default function CollaboratorProfile() {
 
   const [commonProjects, setCommonProjects] = useState<any[]>([]);
   const [sharedFiles, setSharedFiles] = useState<any[]>([]);
+  const [collaborator, setCollaborator] = useState<any>(null);
   const [collaboratorStats, setCollaboratorStats] = useState({ projects: 0, tasks: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -51,6 +52,7 @@ export default function CollaboratorProfile() {
       ];
       setCommonProjects(allProjects);
       setSharedFiles(filesRes.data || []);
+      setCollaborator(profileRes.data);
       if (profileRes.data.stats) {
         setCollaboratorStats(profileRes.data.stats);
       }
@@ -96,9 +98,13 @@ export default function CollaboratorProfile() {
           style={[styles.profileCard, { backgroundColor: theme.colors.card }]}
         >
           <View style={[styles.avatarLarge, { backgroundColor: theme.colors.primaryLight }]}>
-            <Text style={[styles.avatarTextLarge, { color: theme.colors.primary }]}>
-              {name?.charAt(0)}
-            </Text>
+            {collaborator?.avatarUrl ? (
+              <Image source={{ uri: getFullUrl(collaborator.avatarUrl) }} style={styles.avatarLargeImg} />
+            ) : (
+              <Text style={[styles.avatarTextLarge, { color: theme.colors.primary }]}>
+                {name?.charAt(0)}
+              </Text>
+            )}
           </View>
           <Text style={[styles.nameText, { color: theme.colors.text }]}>{name}</Text>
           <Text style={[styles.roleText, { color: theme.colors.textSecondary }]}>Colaborador</Text>
@@ -277,6 +283,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+    overflow: 'hidden',
+  },
+  avatarLargeImg: {
+    width: '100%',
+    height: '100%',
   },
   avatarTextLarge: {
     fontSize: 40,

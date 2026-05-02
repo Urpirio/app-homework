@@ -31,6 +31,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const API_URL = 'https://app-homework-production.up.railway.app';
+
+const getFullUrl = (path: string) => {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+};
+
 export default function CollaboratorsScreen() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -270,9 +278,13 @@ export default function CollaboratorsScreen() {
                       delayLongPress={500}
                     >
                       <View style={[styles.avatar, { backgroundColor: theme.colors.primaryLight }]}>
-                        <Text style={[styles.avatarText, { color: theme.colors.primary }]}>
-                          {collab.name.charAt(0)}
-                        </Text>
+                        {collab.avatar ? (
+                          <Image source={{ uri: getFullUrl(collab.avatar) }} style={styles.avatarImg} />
+                        ) : (
+                          <Text style={[styles.avatarText, { color: theme.colors.primary }]}>
+                            {collab.name.charAt(0)}
+                          </Text>
+                        )}
                       </View>
                       <View style={styles.content}>
                         <View style={styles.nameRow}>
@@ -572,6 +584,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: { fontSize: 22, fontWeight: '800' },
   content: {

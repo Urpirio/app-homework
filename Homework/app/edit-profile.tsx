@@ -27,6 +27,14 @@ import api from '@/utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const API_URL = 'https://app-homework-production.up.railway.app';
+
+const getFullUrl = (path: string) => {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+};
+
 export default function EditProfileScreen() {
   const { theme } = useTheme();
 
@@ -82,12 +90,35 @@ export default function EditProfileScreen() {
   const handleSave = async () => {
     try {
       setIsLoading(true);
+      
+      let finalAvatarUrl = image;
+
+      // Si la imagen es una URI local de ImagePicker, hay que subirla
+      if (image && (image.startsWith('file://') || image.startsWith('content://'))) {
+        const formData = new FormData();
+        const filename = image.split('/').pop() || 'upload.jpg';
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image`;
+
+        formData.append('file', {
+          uri: image,
+          name: filename,
+          type,
+        } as any);
+
+        const uploadRes = await api.post('/uploads', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        finalAvatarUrl = uploadRes.data.fileUrl;
+      }
+
       await api.patch('/auth/profile', {
         fullName: name,
         email,
         role,
-        avatarUrl: image
+        avatarUrl: finalAvatarUrl
       });
+      
       Alert.alert('Éxito', 'Perfil actualizado con éxito');
       router.back();
     } catch (error) {
@@ -129,9 +160,14 @@ export default function EditProfileScreen() {
                 <Pressable onPress={pickImage} style={styles.avatarWrapper}>
                   <View style={[styles.avatarContainer, { backgroundColor: theme.colors.primaryLight }]}>
                     {image ? (
-                      <Image source={{ uri: image }} style={styles.avatarImage} />
+                      <Image 
+                        source={{ uri: (image.startsWith('file://') || image.startsWith('content://')) ? image : getFullUrl(image) }} 
+                        style={styles.avatarImage} 
+                      />
                     ) : (
-                      <Text style={[styles.avatarText, { color: theme.colors.primary }]}>JD</Text>
+                      <Text style={[styles.avatarText, { color: theme.colors.primary }]}>
+                        {name ? name.charAt(0).toUpperCase() : 'JD'}
+                      </Text>
                     )}
                   </View>
                   <View style={[styles.changeAvatarBtn, { backgroundColor: theme.colors.primary }]}>

@@ -37,6 +37,14 @@ import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const API_URL = 'https://app-homework-production.up.railway.app';
+
+const getFullUrl = (path: string) => {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+};
+
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams();
   const { theme } = useTheme();
@@ -53,22 +61,29 @@ export default function ProjectDetailScreen() {
   
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [project, setProject] = useState<Project | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projectCollaborators, setProjectCollaborators] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [addCollabModalVisible, setAddCollabModalVisible] = useState(false);
   
+  const isOwner = project?.userId === currentUser?.id;
 
   const fetchProjectData = async () => {
     if (!project) setLoading(true);
     try {
-      const response = await api.get(`/projects/${id}`);
-      setProject(response.data);
-      setTasks(response.data.tasks || []);
-      // El backend ahora devuelve miembros en la respuesta del proyecto
-      if (response.data.members) {
+      const [projRes, userRes] = await Promise.all([
+        api.get(`/projects/${id}`),
+        api.get('/auth/profile')
+      ]);
+
+      setProject(projRes.data);
+      setCurrentUser(userRes.data);
+      setTasks(projRes.data.tasks || []);
+      
+      if (projRes.data.members) {
         setProjectCollaborators(
-          response.data.members.map((m: any) => ({
+          projRes.data.members.map((m: any) => ({
             id: m.user.id,
             name: m.user.fullName,
             avatar: m.user.avatarUrl,
@@ -197,7 +212,8 @@ export default function ProjectDetailScreen() {
               </Pressable>
               <Pressable 
                 onPress={() => setActionsVisible(true)} 
-                style={styles.moreButton}
+                style={[styles.moreButton, { opacity: isOwner ? 1 : 0 }]}
+                disabled={!isOwner}
               >
                 <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.text} />
               </Pressable>
@@ -253,7 +269,7 @@ export default function ProjectDetailScreen() {
                         >
                           <View style={[styles.memberAvatar, { backgroundColor: theme.colors.primaryLight, borderColor: theme.colors.background }]}>
                             {member.avatar ? (
-                              <Image source={{ uri: member.avatar }} style={styles.memberAvatarImg} />
+                              <Image source={{ uri: getFullUrl(member.avatar) }} style={styles.memberAvatarImg} />
                             ) : (
                               <Text style={[styles.memberAvatarText, { color: theme.colors.primary }]}>
                                 {member.name?.charAt(0)}
@@ -262,12 +278,14 @@ export default function ProjectDetailScreen() {
                           </View>
                         </View>
                       ))}
-                      <TouchableOpacity 
-                        style={[styles.addMemberBtn, { backgroundColor: theme.colors.primaryLight, borderColor: theme.colors.background }]}
-                        onPress={() => setAddCollabModalVisible(true)}
-                      >
-                        <Ionicons name="add" size={20} color={theme.colors.primary} />
-                      </TouchableOpacity>
+                      {isOwner && (
+                        <TouchableOpacity 
+                          style={[styles.addMemberBtn, { backgroundColor: theme.colors.primaryLight, borderColor: theme.colors.background }]}
+                          onPress={() => setAddCollabModalVisible(true)}
+                        >
+                          <Ionicons name="add" size={20} color={theme.colors.primary} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 </Animated.View>

@@ -26,6 +26,14 @@ import { Modal } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const API_URL = 'https://app-homework-production.up.railway.app';
+
+const getFullUrl = (path: string) => {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+};
+
 export default function ProfileScreen() {
   const { theme } = useTheme();
   const [logoutVisible, setLogoutVisible] = useState(false);
@@ -95,7 +103,7 @@ export default function ProfileScreen() {
               <Animated.View entering={FadeInDown.duration(800)} style={styles.profileSection}>
                 <View style={[styles.avatarContainer, { backgroundColor: theme.colors.primaryLight }]}>
                   {user?.avatarUrl ? (
-                    <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+                    <Image source={{ uri: getFullUrl(user.avatarUrl) }} style={styles.avatarImage} />
                   ) : (
                     <Text style={[styles.avatarText, { color: theme.colors.primary }]}>
                       {user?.fullName?.charAt(0) || 'U'}
