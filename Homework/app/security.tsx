@@ -94,8 +94,15 @@ export default function SecurityScreen() {
       Alert.alert('Éxito', 'Contraseña actualizada con éxito');
     } catch (error: any) {
       console.error('Error changing password:', error);
-      const msg = error.response?.data?.message || 'No se pudo actualizar la contraseña. Verifica tu contraseña actual.';
-      setError(Array.isArray(msg) ? msg[0] : msg);
+      let msg = 'Error de conexión o el servidor no responde.';
+      if (error.response?.data?.message) {
+        msg = Array.isArray(error.response.data.message) 
+          ? error.response.data.message[0] 
+          : error.response.data.message;
+      } else if (error.message) {
+        msg = `Error: ${error.message}`;
+      }
+      setError(msg);
       setConfirmVisible(false);
     } finally {
       setIsLoading(false);
