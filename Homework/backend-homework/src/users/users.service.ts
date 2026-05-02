@@ -38,4 +38,27 @@ export class UsersService {
     ]);
     return { projects, tasks };
   }
+
+  async findByIdentityCode(code: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { identityCode: code },
+    });
+  }
+
+  async generateIdentityCode(userId: string): Promise<string> {
+    const code = `HW-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    
+    // Verificar que no existe
+    const existing = await this.prisma.user.findUnique({ where: { identityCode: code } });
+    if (existing) {
+      return this.generateIdentityCode(userId); // Reintentar
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { identityCode: code },
+    });
+
+    return code;
+  }
 }

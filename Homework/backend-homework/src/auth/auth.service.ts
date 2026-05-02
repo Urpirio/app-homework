@@ -28,7 +28,8 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
-        avatarUrl: user.avatarUrl
+        avatarUrl: user.avatarUrl,
+        identityCode: user.identityCode,
       }
     };
   }
@@ -48,8 +49,11 @@ export class AuthService {
       password: hashedPassword,
     });
 
+    // Generar código de identidad único
+    const identityCode = await this.usersService.generateIdentityCode(newUser.id);
+
     const { password, ...result } = newUser;
-    return result;
+    return { ...result, identityCode };
   }
 
   async getProfile(userId: string) {

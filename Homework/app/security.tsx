@@ -15,12 +15,15 @@ import {
   Pressable,
   Switch,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ConfirmModal } from '@/components/shared/ConfirmModal';
 import * as SecureStore from 'expo-secure-store';
+import api from '@/utils/api';
+import { toast } from 'sonner-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -91,7 +94,7 @@ export default function SecurityScreen() {
       setConfirmPassword('');
       setConfirmVisible(false);
       
-      Alert.alert('Éxito', 'Contraseña actualizada con éxito');
+      toast.success('Contraseña actualizada con éxito');
     } catch (error: any) {
       console.error('Error changing password:', error);
       let msg = 'Error de conexión o el servidor no responde.';
