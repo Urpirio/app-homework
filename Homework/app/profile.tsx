@@ -11,7 +11,8 @@ import {
   View, 
   Dimensions, 
   Pressable,
-  ActivityIndicator 
+  ActivityIndicator,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -73,9 +74,13 @@ export default function ProfileScreen() {
             ) : (
               <Animated.View entering={FadeInDown.duration(800)} style={styles.profileSection}>
                 <View style={[styles.avatarContainer, { backgroundColor: theme.colors.primaryLight }]}>
-                  <Text style={[styles.avatarText, { color: theme.colors.primary }]}>
-                    {user?.fullName?.charAt(0) || 'U'}
-                  </Text>
+                  {user?.avatarUrl ? (
+                    <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+                  ) : (
+                    <Text style={[styles.avatarText, { color: theme.colors.primary }]}>
+                      {user?.fullName?.charAt(0) || 'U'}
+                    </Text>
+                  )}
                   <View style={[styles.onlineIndicator, { backgroundColor: theme.colors.success }]} />
                 </View>
                 <Text style={[styles.userName, { color: theme.colors.text }]}>
@@ -93,8 +98,18 @@ export default function ProfileScreen() {
             )}
 
             <Animated.View entering={FadeInDown.delay(200)} style={styles.statsRow}>
-              <StatCard label="Proyectos" value="12" icon="folder-outline" color={theme.colors.primary} />
-              <StatCard label="Tareas" value="48" icon="checkbox-outline" color={theme.colors.success} />
+              <StatCard 
+                label="Proyectos" 
+                value={user?.stats?.projects?.toString() || '0'} 
+                icon="folder-outline" 
+                color={theme.colors.primary} 
+              />
+              <StatCard 
+                label="Tareas" 
+                value={user?.stats?.tasks?.toString() || '0'} 
+                icon="checkbox-outline" 
+                color={theme.colors.success} 
+              />
             </Animated.View>
 
             <Animated.View entering={FadeInDown.delay(400)} style={styles.optionsSection}>
@@ -204,7 +219,12 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
     marginBottom: 16,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: { fontSize: 36, fontWeight: '800' },
   onlineIndicator: {

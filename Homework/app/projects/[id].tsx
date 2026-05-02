@@ -102,7 +102,8 @@ export default function ProjectDetailScreen() {
 
   const toggleTaskStatus = async (task: Task) => {
     try {
-      const newStatus = task.status === 'done' ? 'todo' : 'done';
+      const isDone = task.status?.toLowerCase() === 'done';
+      const newStatus = isDone ? 'todo' : 'done';
       const response = await api.patch(`/tasks/${task.id}`, { status: newStatus });
       setTasks(tasks.map(t => t.id === task.id ? { ...t, status: response.data.status } : t));
     } catch (error) {
@@ -146,7 +147,7 @@ export default function ProjectDetailScreen() {
                     <View style={styles.progressInfo}>
                       <Text style={[styles.progressLabel, { color: theme.colors.text }]}>Progreso</Text>
                       <Text style={[styles.progressValue, { color: theme.colors.text }]}>
-                        {tasks.length > 0 ? Math.round((tasks.filter(t => t.status.toLowerCase() === 'done').length / tasks.length) * 100) : 0}%
+                        {tasks.length > 0 ? Math.round((tasks.filter(t => t.status?.toLowerCase() === 'done').length / tasks.length) * 100) : 0}%
                       </Text>
                     </View>
                     <View style={[styles.progressBarBase, { backgroundColor: theme.colors.border }]}>
@@ -155,7 +156,7 @@ export default function ProjectDetailScreen() {
                           styles.progressBarFill, 
                           { 
                             backgroundColor: project.color, 
-                            width: `${tasks.length > 0 ? (tasks.filter(t => t.status.toLowerCase() === 'done').length / tasks.length) * 100 : 0}%` 
+                            width: `${tasks.length > 0 ? (tasks.filter(t => t.status?.toLowerCase() === 'done').length / tasks.length) * 100 : 0}%` 
                           }
                         ]} 
                       />

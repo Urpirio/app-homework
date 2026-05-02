@@ -11,8 +11,18 @@ export class TasksService {
   ) {}
 
   async create(userId: string, data: any) {
+    let status = data.status;
+    if (status) {
+      status = status.toUpperCase().replace(/-/g, '_');
+    }
     const task = await this.prisma.task.create({
-      data,
+      data: {
+        title: data.title,
+        description: data.description,
+        status: status,
+        projectId: data.projectId,
+        dueDate: data.dueDate,
+      },
       include: { project: true },
     });
 
@@ -46,13 +56,32 @@ export class TasksService {
   }
 
   async update(id: string, userId: string, data: any) {
+    // Verificar que la tarea pertenece al usuario
+    const existingTask = await this.prisma.task.findFirst({
+      where: { id, project: { userId } },
+    });
+
+    if (!existingTask) {
+      throw new Error('Task not found or unauthorized');
+    }
+
+    let status = data.status;
+    if (status) {
+      status = status.toUpperCase().replace(/-/g, '_');
+    }
+
     const task = await this.prisma.task.update({
       where: { id },
-      data,
+      data: {
+        title: data.title,
+        description: data.description,
+        status: status,
+        dueDate: data.dueDate,
+      },
       include: { project: true },
     });
 
-    if (data.status === 'DONE') {
+    if (status === 'DONE' && existingTask.status !== 'DONE') {
       await this.notificationsService.create({
         title: 'Tarea Completada',
         message: `Has completado la tarea "${task.title}"`,
@@ -65,6 +94,15 @@ export class TasksService {
   }
 
   async remove(id: string, userId: string) {
+    // Verificar propiedad antes de eliminar
+    const task = await this.prisma.task.findFirst({
+      where: { id, project: { userId } },
+    });
+
+    if (!task) {
+      throw new Error('Task not found or unauthorized');
+    }
+
     return this.prisma.task.delete({
       where: { id },
     });

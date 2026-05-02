@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import React from 'react';
 import { Image, StyleSheet, Text, View, Pressable } from 'react-native';
 
-export const HomeHeader = () => {
+export const HomeHeader = ({ user }: { user?: any }) => {
   const { theme } = useTheme();
 
   return (
@@ -14,11 +14,19 @@ export const HomeHeader = () => {
         style={styles.userInfo}
       >
         <View style={[styles.avatarContainer, { backgroundColor: theme.colors.primaryLight }]}>
-          <Text style={[styles.avatarText, { color: theme.colors.primary }]}>JD</Text>
+          {user?.avatarUrl ? (
+            <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+          ) : (
+            <Text style={[styles.avatarText, { color: theme.colors.primary }]}>
+              {user?.fullName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'U'}
+            </Text>
+          )}
         </View>
         <View style={styles.welcomeText}>
           <Text style={[styles.greeting, { color: theme.colors.textSecondary }]}>Hola,</Text>
-          <Text style={[styles.userName, { color: theme.colors.text }]}>John Doe</Text>
+          <Text style={[styles.userName, { color: theme.colors.text }]}>
+            {user?.fullName || 'Usuario'}
+          </Text>
         </View>
       </Pressable>
       
@@ -50,6 +58,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: {
     fontSize: 18,

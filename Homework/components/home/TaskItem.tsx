@@ -14,8 +14,8 @@ interface TaskItemProps {
 export const TaskItem = ({ task, index, onToggle }: TaskItemProps) => {
   const { theme } = useTheme();
 
-  const isDone = task.status === 'done';
-  const isInProgress = task.status === 'in-progress';
+  const isDone = task.status?.toLowerCase() === 'done';
+  const isInProgress = task.status?.toLowerCase() === 'in_progress' || task.status?.toLowerCase() === 'in-progress';
 
   const getStatusColor = () => {
     if (isDone) return theme.colors.success;

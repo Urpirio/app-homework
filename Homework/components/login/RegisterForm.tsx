@@ -20,11 +20,11 @@ export function RegisterForm({ onSubmit }: RegisterFormProps) {
     setLoading,
     isLoading,
   } = useFormValidation({
-    username: '',
+    fullName: '',
     email: '',
     password: '',
   }, {
-    username: (val) => val.length < 3 ? 'Mínimo 3 caracteres' : null,
+    fullName: (val) => val.length < 3 ? 'Mínimo 3 caracteres' : null,
     email: validateEmail,
     password: validatePassword,
   });
@@ -45,16 +45,16 @@ export function RegisterForm({ onSubmit }: RegisterFormProps) {
   return (
     <View style={styles.container}>
       <AnimatedInput
-        value={values.username}
-        onChangeText={(text) => handleChange('username', text)}
-        placeholder="Nombre de usuario"
-        error={errors.username}
-        accessibilityLabel="Nombre de usuario"
-        accessibilityHint="Ingresa tu nombre de usuario"
+        value={values.fullName}
+        onChangeText={(text) => handleChange('fullName', text)}
+        placeholder="Nombre completo"
+        error={errors.fullName}
+        accessibilityLabel="Nombre completo"
+        accessibilityHint="Ingresa tu nombre completo"
         delay={0}
         icon="person-outline"
       />
-      <ErrorMessage message={errors.username} visible={!!errors.username} />
+      <ErrorMessage message={errors.fullName} visible={!!errors.fullName} />
 
       <AnimatedInput
         value={values.email}

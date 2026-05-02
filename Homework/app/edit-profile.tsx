@@ -21,6 +21,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
+import { useEffect } from 'react';  
+import { ActivityIndicator } from 'react-native';
+import api from '@/utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -28,11 +31,30 @@ export default function EditProfileScreen() {
   const { theme } = useTheme();
 
   // State for user data
-  const [name, setName] = useState('John Doe');
-  const [email, setEmail] = useState('john.doe@example.com');
-  const [role, setRole] = useState('Project Manager');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await api.get('/auth/profile');
+        const user = response.data;
+        setName(user.fullName || '');
+        setEmail(user.email || '');
+        setRole(user.role || '');
+        setImage(user.avatarUrl || null);
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;
 
@@ -58,13 +80,31 @@ export default function EditProfileScreen() {
   };
 
   const handleSave = async () => {
-    setIsLoading(true);
-    // Simular guardado
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    alert('Perfil actualizado con éxito');
-    router.back();
+    try {
+      setIsLoading(true);
+      await api.patch('/auth/profile', {
+        fullName: name,
+        email,
+        role,
+        avatarUrl: image
+      });
+      Alert.alert('Éxito', 'Perfil actualizado con éxito');
+      router.back();
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      Alert.alert('Error', 'No se pudo actualizar el perfil');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  if (fetching) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>

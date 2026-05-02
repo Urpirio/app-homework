@@ -43,11 +43,33 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(data.password, salt);
 
     const newUser = await this.usersService.create({
-      ...data,
+      email: data.email,
+      fullName: data.fullName || data.username,
       password: hashedPassword,
     });
 
     const { password, ...result } = newUser;
+    return result;
+  }
+
+  async getProfile(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    const stats = await this.usersService.getUserStats(userId);
+    const { password, ...result } = user;
+    return { ...result, stats };
+  }
+
+  async updateProfile(userId: string, data: any) {
+    const updatedUser = await this.usersService.update(userId, {
+      fullName: data.fullName,
+      email: data.email,
+      role: data.role,
+      avatarUrl: data.avatarUrl,
+    });
+    const { password, ...result } = updatedUser;
     return result;
   }
 }

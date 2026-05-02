@@ -13,7 +13,9 @@ export class ProjectsService {
   async create(userId: string, data: any) {
     const project = await this.prisma.project.create({
       data: {
-        ...data,
+        name: data.name,
+        description: data.description,
+        color: data.color,
         userId,
       },
     });
@@ -50,7 +52,11 @@ export class ProjectsService {
   async update(id: string, userId: string, data: any) {
     return this.prisma.project.update({
       where: { id, userId },
-      data,
+      data: {
+        name: data.name,
+        description: data.description,
+        color: data.color,
+      },
     });
   }
 

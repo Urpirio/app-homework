@@ -11,6 +11,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { Pressable } from 'react-native';
 import api from '@/utils/api';
+import { ProjectModal } from '@/components/login/ProjectModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -50,12 +51,18 @@ const MOCK_PROJECTS: Project[] = [
 export default function HomeScreen() {
   const { theme } = useTheme();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [projectModalVisible, setProjectModalVisible] = useState(false);
 
-  const fetchProjects = async () => {
+  const fetchData = async () => {
     try {
-      const response = await api.get('/projects');
-      const mappedProjects = response.data.map((p: any) => ({
+      const [projectsRes, profileRes] = await Promise.all([
+        api.get('/projects'),
+        api.get('/auth/profile'),
+      ]);
+
+      const mappedProjects = projectsRes.data.map((p: any) => ({
         id: p.id,
         name: p.name,
         description: p.description || '',
@@ -66,16 +73,27 @@ export default function HomeScreen() {
         color: p.color || theme.colors.primary,
       }));
       setProjects(mappedProjects);
+      setUser(profileRes.data);
     } catch (error) {
-      console.error('Error fetching projects:', error);
+      console.error('Error fetching home data:', error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProjects();
+    fetchData();
   }, []);
+
+  const handleSaveProject = async (data: any) => {
+    try {
+      await api.post('/projects', data);
+      fetchData(); // Recargar todo
+      setProjectModalVisible(false);
+    } catch (error) {
+      console.error('Error saving project:', error);
+    }
+  };
 
   const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;
 
@@ -88,7 +106,7 @@ export default function HomeScreen() {
           contentContainerStyle={{ paddingHorizontal: horizontalPadding }}
           showsVerticalScrollIndicator={false}
         >
-          <HomeHeader />
+          <HomeHeader user={user} />
 
           <Animated.View entering={FadeInDown.delay(300)} style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -107,11 +125,25 @@ export default function HomeScreen() {
                 <ProjectCard key={project.id} project={project} index={index} />
               ))
             ) : (
-              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                No tienes proyectos todavía. ¡Crea uno nuevo!
-              </Text>
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                  No tienes proyectos todavía.
+                </Text>
+                <Pressable 
+                  onPress={() => setProjectModalVisible(true)}
+                  style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
+                >
+                  <Text style={styles.createButtonText}>Crear mi primer proyecto</Text>
+                </Pressable>
+              </View>
             )}
           </Animated.View>
+
+          <ProjectModal 
+            visible={projectModalVisible}
+            onClose={() => setProjectModalVisible(false)}
+            onSave={handleSaveProject}
+          />
 
           <Animated.View entering={FadeInDown.delay(600)} style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
@@ -120,12 +152,16 @@ export default function HomeScreen() {
             
             <View style={[styles.statsGrid]}>
               <View style={[styles.statCard, { backgroundColor: theme.colors.card }]}>
-                <Text style={[styles.statValue, { color: theme.colors.primary }]}>12</Text>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Pendientes</Text>
+                <Text style={[styles.statValue, { color: theme.colors.primary }]}>
+                  {user?.stats?.tasks || 0}
+                </Text>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Tareas</Text>
               </View>
               <View style={[styles.statCard, { backgroundColor: theme.colors.card }]}>
-                <Text style={[styles.statValue, { color: theme.colors.success }]}>25</Text>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Completadas</Text>
+                <Text style={[styles.statValue, { color: theme.colors.success }]}>
+                  {projects.length}
+                </Text>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Proyectos</Text>
               </View>
             </View>
           </Animated.View>
@@ -177,5 +213,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     fontStyle: 'italic',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  createButton: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  createButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

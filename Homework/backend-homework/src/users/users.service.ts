@@ -30,4 +30,12 @@ export class UsersService {
       data,
     });
   }
+
+  async getUserStats(userId: string) {
+    const [projects, tasks] = await Promise.all([
+      this.prisma.project.count({ where: { userId } }),
+      this.prisma.task.count({ where: { project: { userId } } }),
+    ]);
+    return { projects, tasks };
+  }
 }
