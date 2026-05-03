@@ -201,16 +201,22 @@ async function main() {
 
   const dbStudents = await prisma.user.findMany({ where: { role: Role.STUDENT } });
   const submissionData = [];
-  for (let i = 0; i < 500; i++) {
-    const task = tasks[i % 200];
-    const student = dbStudents[i % 200];
-    submissionData.push({
-      taskId: task.id,
-      studentId: student.id,
-      content: 'Respuesta detallada al requerimiento de la tarea académica.',
-      grade: 60 + Math.random() * 40,
-      status: SubmissionStatus.GRADED,
-    });
+  let studentOffset = 0;
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+    // Assign 3 different students per task to reach >500 submissions
+    for (let j = 0; j < 3; j++) {
+      const student = dbStudents[(studentOffset + j) % dbStudents.length];
+      submissionData.push({
+        taskId: task.id,
+        studentId: student.id,
+        content: 'Respuesta detallada al requerimiento de la tarea académica.',
+        grade: 60 + Math.random() * 40,
+        status: SubmissionStatus.GRADED,
+      });
+    }
+    studentOffset += 3;
+    if (submissionData.length >= 550) break;
   }
   await prisma.submission.createMany({ data: submissionData });
 
