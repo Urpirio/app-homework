@@ -117,12 +117,12 @@ async function main() {
   console.log('✅ Users created and verified');
 
   // 4. Classrooms & Students
-  console.log('⏳ Generating 5 classrooms and 50 students...');
+  console.log('⏳ Generating 10 classrooms and 200 students...');
   const classrooms = [];
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 10; i++) {
     const cls = await prisma.classroom.create({
       data: {
-        name: `${i}to Año - Division ${String.fromCharCode(64 + i)}`,
+        name: `${i}to Año - Division ${String.fromCharCode(64 + (i % 5))}`,
         description: `Aula de formación general grupo ${i}`,
         institutionId: inst1.id,
       },
@@ -130,125 +130,138 @@ async function main() {
     classrooms.push(cls);
   }
 
-  for (let i = 1; i <= 50; i++) {
-    await prisma.user.create({
-      data: {
-        email: `estudiante${i}@itc.edu`,
-        password: hashedPassword,
-        fullName: `Estudiante Ejemplo ${i}`,
-        role: Role.STUDENT,
-        institutionId: inst1.id,
-        classroomId: classrooms[i % 5].id,
-        isVerified: true,
-        identityCode: `HW-ST-${1000 + i}`,
-      },
+  const studentData = [];
+  for (let i = 1; i <= 200; i++) {
+    studentData.push({
+      email: `estudiante${i}@itc.edu`,
+      password: hashedPassword,
+      fullName: `Estudiante Ejemplo ${i}`,
+      role: Role.STUDENT,
+      institutionId: inst1.id,
+      classroomId: classrooms[i % 10].id,
+      isVerified: true,
+      identityCode: `HW-ST-${1000 + i}`,
     });
   }
+  await prisma.user.createMany({ data: studentData });
 
   // 5. Teachers & Subjects
-  console.log('⏳ Generating 10 teachers and 15 subjects...');
-  const teachers = [];
-  for (let i = 1; i <= 10; i++) {
-    const t = await prisma.user.create({
-      data: {
-        email: `profe${i}@itc.edu`,
-        password: hashedPassword,
-        fullName: `Profesor ${i}`,
-        role: Role.TEACHER,
-        institutionId: inst1.id,
-        isVerified: true,
-        specialty: i % 2 === 0 ? 'Ciencias' : 'Humanidades',
-      },
+  console.log('⏳ Generating 30 teachers and 30 subjects...');
+  const teacherData = [];
+  for (let i = 1; i <= 30; i++) {
+    teacherData.push({
+      email: `profe${i}@itc.edu`,
+      password: hashedPassword,
+      fullName: `Profesor ${i}`,
+      role: Role.TEACHER,
+      institutionId: inst1.id,
+      isVerified: true,
+      specialty: i % 2 === 0 ? 'Ciencias' : 'Humanidades',
     });
-    teachers.push(t);
   }
+  await prisma.user.createMany({ data: teacherData });
 
-  const subjectNames = ['Matemáticas', 'Lengua', 'Historia', 'Física', 'Química', 'Biología', 'Geografía', 'Arte', 'Inglés', 'Tecnología'];
+  // Re-fetch teachers to get their IDs
+  const dbTeachers = await prisma.user.findMany({ where: { role: Role.TEACHER } });
+
+  const subjectNames = ['Matemáticas', 'Lengua', 'Historia', 'Física', 'Química', 'Biología', 'Geografía', 'Arte', 'Inglés', 'Tecnología', 'Filosofía', 'Economía', 'Psicología', 'Sociología', 'Música'];
   const subjects = [];
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 30; i++) {
     const sub = await prisma.project.create({
       data: {
-        name: `${subjectNames[i % 10]} ${Math.floor(i / 10) + 1}`,
+        name: `${subjectNames[i % 15]} ${Math.floor(i / 15) + 1}`,
         description: `Materia curricular obligatoria nivel ${i + 1}`,
         color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
         icon: 'book',
         institutionId: inst1.id,
-        classroomId: classrooms[i % 5].id,
-        userId: teachers[i % 10].id,
+        classroomId: classrooms[i % 10].id,
+        userId: dbTeachers[i % 30].id,
       },
     });
     subjects.push(sub);
   }
 
-  // 6. Tasks & Submissions (A lot of data here)
-  console.log('⏳ Generating 60 tasks and 100 submissions...');
-  for (let i = 0; i < 60; i++) {
-    const sub = subjects[i % 15];
+  // 6. Tasks & Submissions
+  console.log('⏳ Generating 200 tasks and 500 submissions...');
+  const tasks = [];
+  for (let i = 0; i < 200; i++) {
+    const sub = subjects[i % 30];
     const task = await prisma.task.create({
       data: {
-        title: `Tarea Semanal ${i + 1}`,
-        description: `Contenido de evaluación para la semana ${Math.floor(i / 15) + 1}`,
+        title: `Tarea Académica ${i + 1}`,
+        description: `Evaluación integral del contenido del módulo ${Math.floor(i / 30) + 1}`,
         status: i % 3 === 0 ? TaskStatus.DONE : TaskStatus.TODO,
         projectId: sub.id,
         maxGrade: 100,
+        dueDate: new Date(Date.now() + (i % 30) * 24 * 60 * 60 * 1000),
       },
     });
-
-    // Create some submissions for each task
-    if (i % 2 === 0) {
-      const studentEmails = [`estudiante${(i % 50) + 1}@itc.edu`, `estudiante${((i + 1) % 50) + 1}@itc.edu`];
-      for (const email of studentEmails) {
-        const s = await prisma.user.findUnique({ where: { email } });
-        if (s) {
-          await prisma.submission.create({
-            data: {
-              taskId: task.id,
-              studentId: s.id,
-              content: 'Trabajo entregado en término.',
-              grade: 70 + Math.random() * 30,
-              status: SubmissionStatus.GRADED,
-            },
-          });
-        }
-      }
-    }
+    tasks.push(task);
   }
 
-  // 7. Library (50 books)
-  console.log('⏳ Generating 50 library books...');
-  const catLib = await prisma.bookCategory.create({ data: { name: 'Biblioteca General' } });
-  for (let i = 1; i <= 50; i++) {
-    await prisma.book.create({
-      data: {
-        title: `Libro de Consulta ${i}`,
-        author: `Autor Ficticio ${i}`,
-        synopsis: 'Breve descripción del contenido académico del libro.',
-        institutionId: inst1.id,
-        categoryId: catLib.id,
-        available: i % 5 !== 0,
-      },
+  const dbStudents = await prisma.user.findMany({ where: { role: Role.STUDENT } });
+  const submissionData = [];
+  for (let i = 0; i < 500; i++) {
+    const task = tasks[i % 200];
+    const student = dbStudents[i % 200];
+    submissionData.push({
+      taskId: task.id,
+      studentId: student.id,
+      content: 'Respuesta detallada al requerimiento de la tarea académica.',
+      grade: 60 + Math.random() * 40,
+      status: SubmissionStatus.GRADED,
     });
   }
+  await prisma.submission.createMany({ data: submissionData });
 
-  // 8. Support Tickets (30 tickets)
-  console.log('⏳ Generating 30 support tickets...');
-  for (let i = 1; i <= 30; i++) {
-    const s = await prisma.user.findUnique({ where: { email: `estudiante${(i % 50) + 1}@itc.edu` } });
-    if (s) {
-      await prisma.ticket.create({
-        data: {
-          title: `Inconveniente Técnico ${i}`,
-          description: 'No puedo visualizar el contenido de la materia.',
-          category: 'Soporte',
-          createdById: s.id,
-          assignedToId: support.id,
-          status: i % 2 === 0 ? TicketStatus.RESOLVED : TicketStatus.OPEN,
-        },
-      });
-    }
+  // 7. Library (100 books)
+  console.log('⏳ Generating 100 library books...');
+  const catLib = await prisma.bookCategory.create({ data: { name: 'Biblioteca Centralizada' } });
+  const bookData = [];
+  for (let i = 1; i <= 100; i++) {
+    bookData.push({
+      title: `Libro Académico ${i}`,
+      author: `Autor Especialista ${i}`,
+      synopsis: 'Obra de referencia para consulta técnica y científica.',
+      institutionId: inst1.id,
+      categoryId: catLib.id,
+      available: i % 10 !== 0,
+    });
   }
+  await prisma.book.createMany({ data: bookData });
 
-  console.log('✨ Massive seeding finished successfully! (>300 records created)');
+  // 8. Support Tickets (100 tickets)
+  console.log('⏳ Generating 100 support tickets...');
+  const ticketData = [];
+  for (let i = 1; i <= 100; i++) {
+    const student = dbStudents[i % 200];
+    ticketData.push({
+      title: `Incidencia técnica #${i}`,
+      description: 'Reporte de error en la visualización de calificaciones.',
+      category: i % 3 === 0 ? 'Bug' : 'Consulta',
+      createdById: student.id,
+      assignedToId: support.id,
+      status: i % 2 === 0 ? TicketStatus.RESOLVED : TicketStatus.OPEN,
+    });
+  }
+  await prisma.ticket.createMany({ data: ticketData });
+
+  // 9. Messages (100 messages)
+  console.log('⏳ Generating 100 messages...');
+  const messageData = [];
+  for (let i = 0; i < 100; i++) {
+    const student = dbStudents[i % 200];
+    const teacher = dbTeachers[i % 30];
+    messageData.push({
+      text: `Mensaje de consulta académica #${i}`,
+      senderId: i % 2 === 0 ? student.id : teacher.id,
+      receiverId: i % 2 === 0 ? teacher.id : student.id,
+      projectId: subjects[i % 30].id,
+    });
+  }
+  await prisma.message.createMany({ data: messageData });
+
+  console.log('✨ Ultimate massive seeding finished successfully! (>1000 records created)');
 }
 
 main()
