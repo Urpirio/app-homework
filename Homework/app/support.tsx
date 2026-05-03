@@ -4,7 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ScrollView, 
   StyleSheet, 
@@ -12,10 +12,14 @@ import {
   View, 
   Dimensions, 
   Pressable,
-  Alert
+  Alert,
+  ActivityIndicator,
+  TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
+import api from '@/utils/api';
+import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -36,15 +40,47 @@ const FAQS = [
 
 export default function SupportScreen() {
   const { theme } = useTheme();
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNewTicket, setShowNewTicket] = useState(false);
+  const [newTicket, setNewTicket] = useState({ subject: '', description: '', category: 'TECNICO' });
+
+  const fetchTickets = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/tickets');
+      setTickets(response.data);
+    } catch (error) {
+      console.error('Error fetching tickets:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  const handleCreateTicket = async () => {
+    if (!newTicket.subject || !newTicket.description) {
+      Toast.show({ type: 'error', text1: 'Campos incompletos' });
+      return;
+    }
+    try {
+      await api.post('/tickets', newTicket);
+      Toast.show({ type: 'success', text1: 'Ticket creado correctamente' });
+      setShowNewTicket(false);
+      setNewTicket({ subject: '', description: '', category: 'TECNICO' });
+      fetchTickets();
+    } catch (error) {
+      Toast.show({ type: 'error', text1: 'Error al crear ticket' });
+    }
+  };
 
   const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;
 
   const handleEmail = () => {
     Linking.openURL('mailto:soporte@homeworkapp.com?subject=Soporte Técnico');
-  };
-
-  const handleChat = () => {
-    Alert.alert('Información', 'La función de Chat en vivo no está disponible en este momento.');
   };
 
   return (
@@ -66,23 +102,72 @@ export default function SupportScreen() {
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Contacto Directo</Text>
               <View style={styles.contactGrid}>
                 <ContactCard 
-                  icon="chatbubble-ellipses-outline" 
-                  label="Chat en vivo" 
-                  description="Respuesta inmediata"
-                  color="#34C759"
-                  onPress={handleChat}
+                  icon="add-circle-outline" 
+                  label="Nuevo Ticket" 
+                  description="Reportar problema"
+                  color={theme.colors.primary}
+                  onPress={() => setShowNewTicket(!showNewTicket)}
                 />
                 <ContactCard 
                   icon="mail-outline" 
                   label="Correo" 
                   description="Soporte técnico"
-                  color={theme.colors.primary}
+                  color={theme.colors.secondary}
                   onPress={handleEmail}
                 />
               </View>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(300)} style={styles.section}>
+            {showNewTicket && (
+              <Animated.View entering={FadeInDown} style={[styles.newTicketForm, { backgroundColor: theme.colors.card }]}>
+                <Text style={[styles.formTitle, { color: theme.colors.text }]}>Crear Ticket de Soporte</Text>
+                <TextInput 
+                  placeholder="Asunto"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border }]}
+                  value={newTicket.subject}
+                  onChangeText={(text) => setNewTicket({...newTicket, subject: text})}
+                />
+                <TextInput 
+                  placeholder="Descripción detallada del problema..."
+                  placeholderTextColor={theme.colors.textSecondary}
+                  style={[styles.input, styles.textArea, { color: theme.colors.text, borderColor: theme.colors.border }]}
+                  multiline
+                  numberOfLines={4}
+                  value={newTicket.description}
+                  onChangeText={(text) => setNewTicket({...newTicket, description: text})}
+                />
+                <Pressable 
+                  onPress={handleCreateTicket}
+                  style={[styles.submitBtn, { backgroundColor: theme.colors.primary }]}
+                >
+                  <Text style={styles.submitBtnText}>Enviar Ticket</Text>
+                </Pressable>
+              </Animated.View>
+            )}
+
+            <Animated.View entering={FadeInDown.delay(200)} style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Mis Tickets</Text>
+              {loading ? (
+                <ActivityIndicator color={theme.colors.primary} />
+              ) : tickets.length === 0 ? (
+                <Text style={{ color: theme.colors.textSecondary, textAlign: 'center' }}>No tienes tickets activos.</Text>
+              ) : (
+                tickets.map((ticket) => (
+                  <View key={ticket.id} style={[styles.ticketCard, { backgroundColor: theme.colors.card }]}>
+                    <View style={styles.ticketHeader}>
+                      <Text style={[styles.ticketSubject, { color: theme.colors.text }]}>{ticket.subject}</Text>
+                      <View style={[styles.statusBadge, { backgroundColor: ticket.status === 'OPEN' ? theme.colors.success + '20' : theme.colors.border }]}>
+                        <Text style={[styles.statusText, { color: ticket.status === 'OPEN' ? theme.colors.success : theme.colors.textSecondary }]}>{ticket.status}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.ticketDate, { color: theme.colors.textSecondary }]}>{new Date(ticket.createdAt).toLocaleDateString()}</Text>
+                  </View>
+                ))
+              )}
+            </Animated.View>
+
+            <Animated.View entering={FadeInDown.delay(400)} style={styles.section}>
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Preguntas Frecuentes</Text>
               {FAQS.map((faq, index) => (
                 <FAQItem key={index} {...faq} />
@@ -243,5 +328,64 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  newTicketForm: {
+    padding: 20,
+    borderRadius: 24,
+    marginBottom: 32,
+    gap: 12,
+  },
+  formTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  submitBtn: {
+    padding: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  submitBtnText: {
+    color: '#FFF',
+    fontWeight: '800',
+  },
+  ticketCard: {
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 12,
+  },
+  ticketHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  ticketSubject: {
+    fontSize: 15,
+    fontWeight: '700',
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  ticketDate: {
+    fontSize: 11,
   },
 });

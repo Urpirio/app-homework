@@ -3,7 +3,7 @@ import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import api from '@/utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -36,9 +37,27 @@ const MOCK_GRADES = {
 export default function GradesScreen() {
   const { theme } = useTheme();
   const [selectedPeriod, setSelectedPeriod] = useState('1er Trimestre');
-  
-  const currentGrades = MOCK_GRADES[selectedPeriod as keyof typeof MOCK_GRADES] || [];
-  const gpa = (currentGrades.reduce((acc, curr) => acc + curr.grade, 0) / currentGrades.length).toFixed(1);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchGrades = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/auth/profile');
+      setUser(response.data);
+    } catch (error) {
+      console.error('Error fetching grades:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGrades();
+  }, []);
+
+  const currentGrades = user?.subjects || [];
+  const gpa = user?.stats?.avgGrade?.toFixed(1) || '0.0';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>

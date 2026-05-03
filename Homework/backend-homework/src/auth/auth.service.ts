@@ -194,15 +194,20 @@ export class AuthService {
   }
 
   async getProfile(userId: string) {
-    let user = await this.usersService.findById(userId);
+    const user = await this.usersService.findById(userId);
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
     // Auto-generar identityCode si el usuario no tiene uno (usuarios legacy)
     if (!user.identityCode) {
-      const identityCode = await this.usersService.generateIdentityCode(userId);
-      user = { ...user, identityCode };
+      await this.usersService.generateIdentityCode(userId);
+    }
+
+    if (user.role === Role.STUDENT) {
+      return this.usersService.getStudentProfile(userId);
+    } else if (user.role === Role.TEACHER) {
+      return this.usersService.getTeacherProfile(userId);
     }
 
     const stats = await this.usersService.getUserStats(userId);

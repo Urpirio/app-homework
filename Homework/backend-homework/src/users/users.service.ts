@@ -84,12 +84,25 @@ export class UsersService {
         pendingTasks,
         attendance: "95%" // Placeholder for now
       },
-      subjects: user.submissions.map(s => ({
-        id: s.task.project.id,
-        name: s.task.project.name,
-        teacher: s.task.project.user.fullName,
-        grade: s.grade
-      }))
+      subjects: user.submissions.map(s => {
+        const grade = s.grade || 0;
+        let letter = 'F';
+        if (grade >= 9.5) letter = 'A+';
+        else if (grade >= 9) letter = 'A';
+        else if (grade >= 8.5) letter = 'B+';
+        else if (grade >= 8) letter = 'B';
+        else if (grade >= 7.5) letter = 'C+';
+        else if (grade >= 7) letter = 'C';
+        else if (grade >= 6) letter = 'D';
+
+        return {
+          id: s.task.project.id,
+          name: s.task.project.name,
+          teacher: s.task.project.user.fullName,
+          grade: s.grade,
+          letter
+        };
+      })
     };
   }
 

@@ -115,7 +115,8 @@ export default function TaskDetailScreen() {
     return <View style={styles.centered}><ActivityIndicator size="large" color={theme.colors.primary} /></View>;
   }
 
-  const isSubmitted = !!task?.submission;
+  const isSubmitted = task?.submissions?.length > 0;
+  const submission = isSubmitted ? task.submissions[0] : null;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -128,7 +129,9 @@ export default function TaskDetailScreen() {
           </Pressable>
           <View style={styles.headerText}>
             <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Detalle de Tarea</Text>
-            <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>{task?.subject}</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
+              {task?.project?.name}
+            </Text>
           </View>
         </View>
 
@@ -138,11 +141,11 @@ export default function TaskDetailScreen() {
               <View style={styles.datesRow}>
                 <View style={[styles.dateBox, { backgroundColor: theme.colors.card }]}>
                   <Ionicons name="calendar-outline" size={16} color={theme.colors.primary} />
-                  <Text style={styles.dateText}>Inicio: {task?.startDate}</Text>
+                  <Text style={styles.dateText}>Inicio: {task?.createdAt ? new Date(task.createdAt).toLocaleDateString() : 'N/A'}</Text>
                 </View>
                 <View style={[styles.dateBox, { backgroundColor: theme.colors.card }]}>
                   <Ionicons name="time-outline" size={16} color="#FF3B30" />
-                  <Text style={styles.dateText}>Límite: {task?.deadline}</Text>
+                  <Text style={styles.dateText}>Límite: {task?.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'Pendiente'}</Text>
                 </View>
               </View>
 
@@ -173,26 +176,26 @@ export default function TaskDetailScreen() {
               <View style={styles.submissionArea}>
                 <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Tu Entrega</Text>
                 {isSubmitted ? (
-                  <View style={[styles.subCard, { backgroundColor: theme.colors.card }]}>
-                    <View style={styles.subHeader}>
-                      <Ionicons name="document-check" size={24} color={theme.colors.primary} />
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={[styles.subFileName, { color: theme.colors.text }]}>{task.submission.fileName}</Text>
-                        <Text style={[styles.subDate, { color: theme.colors.textSecondary }]}>Enviado el {task.submission.date}</Text>
-                      </View>
-                      {task.submission.grade && (
-                        <View style={[styles.gradeBadge, { backgroundColor: theme.colors.primaryLight }]}>
-                          <Text style={[styles.gradeText, { color: theme.colors.primary }]}>{task.submission.grade}</Text>
-                        </View>
-                      )}
-                    </View>
-                    {task.submission.feedback && (
-                      <View style={[styles.feedback, { backgroundColor: theme.colors.background }]}>
-                        <Text style={[styles.feedbackTitle, { color: theme.colors.textSecondary }]}>Feedback del Maestro:</Text>
-                        <Text style={[styles.feedbackText, { color: theme.colors.text }]}>{task.submission.feedback}</Text>
-                      </View>
-                    )}
-                  </View>
+                   <View style={[styles.subCard, { backgroundColor: theme.colors.card }]}>
+                     <View style={styles.subHeader}>
+                       <Ionicons name="document-text" size={24} color={theme.colors.primary} />
+                       <View style={{ flex: 1, marginLeft: 12 }}>
+                         <Text style={[styles.subFileName, { color: theme.colors.text }]}>{submission.fileName || 'Archivo de entrega'}</Text>
+                         <Text style={[styles.subDate, { color: theme.colors.textSecondary }]}>Enviado el {new Date(submission.createdAt).toLocaleString()}</Text>
+                       </View>
+                       {submission.grade && (
+                         <View style={[styles.gradeBadge, { backgroundColor: theme.colors.primaryLight }]}>
+                           <Text style={[styles.gradeText, { color: theme.colors.primary }]}>{submission.grade}</Text>
+                         </View>
+                       )}
+                     </View>
+                     {submission.feedback && (
+                       <View style={[styles.feedback, { backgroundColor: theme.colors.background }]}>
+                         <Text style={[styles.feedbackTitle, { color: theme.colors.textSecondary }]}>Feedback del Maestro:</Text>
+                         <Text style={[styles.feedbackText, { color: theme.colors.text }]}>{submission.feedback}</Text>
+                       </View>
+                     )}
+                   </View>
                 ) : (
                   <View style={[styles.emptySub, { backgroundColor: theme.colors.card }]}>
                     <Ionicons name="cloud-upload-outline" size={32} color={theme.colors.textSecondary} opacity={0.5} />

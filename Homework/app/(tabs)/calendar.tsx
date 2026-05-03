@@ -2,7 +2,7 @@ import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -10,43 +10,96 @@ import {
   Dimensions, 
   ScrollView,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import api from '@/utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-const MOCK_SCHEDULE: Record<string, any[]> = {
-  'Lun': [
-    { id: 'm1', name: 'Matemáticas IV', time: '07:00 - 08:30', room: 'Aula 204', icon: 'calculator' },
-    { id: 'm2', name: 'Historia Universal', time: '08:45 - 10:15', room: 'Aula 102', icon: 'book' },
-    { id: 'm3', name: 'Física I', time: '10:30 - 12:00', room: 'Laboratorio A', icon: 'flask' },
-  ],
-  'Mar': [
-    { id: 'm4', name: 'Literatura', time: '07:00 - 08:30', room: 'Aula 301', icon: 'library' },
-    { id: 'm5', name: 'Química', time: '09:00 - 11:00', room: 'Laboratorio B', icon: 'color-filter' },
-  ],
-  'Mié': [
-    { id: 'm1', name: 'Matemáticas IV', time: '07:00 - 08:30', room: 'Aula 204', icon: 'calculator' },
-    { id: 'm6', name: 'Inglés III', time: '11:00 - 12:30', room: 'Aula 105', icon: 'language' },
-  ]
-};
-
-const MOCK_TASKS_BY_DAY: Record<string, any[]> = {
-  'Lun': [{ id: 't1', title: 'Guía de Identidades', subject: 'Matemáticas', type: 'Entrega' }],
-  'Mié': [{ id: 't2', title: 'Examen de Límites', subject: 'Matemáticas', type: 'Examen' }],
-  'Vie': [{ id: 't4', title: 'Ensayo Revolución', subject: 'Historia', type: 'Entrega' }]
-};
-
 export default function CalendarScreen() {
   const { theme } = useTheme();
-  const [selectedDay, setSelectedDay] = useState('Lun');
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const day = new Date().getDay();
+    const map = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    return map[day];
+  });
+  const [loading, setLoading] = useState(true);
+  const [schedules, setSchedules] = useState<Record<string, any[]>>({});
+  const [tasksByDay, setTasksByDay] = useState<Record<string, any[]>>({});
 
-  const schedule = MOCK_SCHEDULE[selectedDay] || [];
-  const tasks = MOCK_TASKS_BY_DAY[selectedDay] || [];
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [schedulesRes, projectsRes] = await Promise.all([
+        api.get('/schedules'),
+        api.get('/projects')
+      ]);
+
+      // Process Schedules
+      const scheduleMap: Record<string, any[]> = {};
+      schedulesRes.data.forEach((s: any) => {
+        if (!scheduleMap[s.day]) scheduleMap[s.day] = [];
+        scheduleMap[s.day].push({
+          id: s.projectId,
+          name: s.project?.name || 'Materia',
+          time: `${s.startTime} - ${s.endTime}`,
+          room: s.room || 'Aula TBD',
+          icon: s.project?.icon || 'book'
+        });
+      });
+      setSchedules(scheduleMap);
+
+      // Process Tasks
+      const taskMap: Record<string, any[]> = {};
+      const dayMapNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+      
+      projectsRes.data.forEach((p: any) => {
+        (p.tasks || []).forEach((t: any) => {
+          if (t.dueDate) {
+            const date = new Date(t.dueDate);
+            const dayName = dayMapNames[date.getDay()];
+            if (!taskMap[dayName]) taskMap[dayName] = [];
+            taskMap[dayName].push({
+              id: t.id,
+              title: t.title,
+              subject: p.name,
+              type: t.type === 'EXAM' ? 'Examen' : 'Entrega'
+            });
+          }
+        });
+      });
+      setTasksByDay(taskMap);
+
+    } catch (error) {
+      console.error('Error fetching calendar data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [])
+  );
+
+  const currentSchedule = schedules[selectedDay] || [];
+  const currentTasks = tasksByDay[selectedDay] || [];
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -63,7 +116,7 @@ export default function CalendarScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayList}>
             {DAYS.map((day) => {
               const isSelected = selectedDay === day;
-              const hasTasks = !!MOCK_TASKS_BY_DAY[day];
+              const hasTasks = !!tasksByDay[day] && tasksByDay[day].length > 0;
               return (
                 <Pressable 
                   key={day} 
@@ -88,8 +141,8 @@ export default function CalendarScreen() {
               <Ionicons name="time" size={20} color={theme.colors.primary} />
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Horario de Clases</Text>
             </View>
-            {schedule.length > 0 ? schedule.map((item, index) => (
-              <Animated.View key={item.id} entering={FadeInRight.delay(index * 100)}>
+            {currentSchedule.length > 0 ? currentSchedule.map((item, index) => (
+              <Animated.View key={`${item.id}-${index}`} entering={FadeInRight.delay(index * 100)}>
                 <Pressable 
                   onPress={() => router.push(`/projects/${item.id}`)}
                   style={[styles.classCard, { backgroundColor: theme.colors.card }]}
@@ -117,7 +170,7 @@ export default function CalendarScreen() {
               <Ionicons name="notifications" size={20} color="#FF9500" />
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Entregas y Pendientes</Text>
             </View>
-            {tasks.length > 0 ? tasks.map((task, index) => (
+            {currentTasks.length > 0 ? currentTasks.map((task, index) => (
               <Animated.View key={task.id} entering={FadeInDown.delay(index * 100)}>
                 <Pressable 
                   onPress={() => router.push(`/tasks/${task.id}`)}
@@ -145,6 +198,7 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   container: { flex: 1 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { paddingHorizontal: 25, paddingVertical: 20 },
   headerTitle: { fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
   headerSubtitle: { fontSize: 14, fontWeight: '600' },

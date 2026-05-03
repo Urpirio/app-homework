@@ -33,16 +33,7 @@ export default function InstitutionsListScreen() {
   const fetchInstitutions = async () => {
     try {
       const res = await api.get('/institutions');
-      const apiInst = res.data;
-      
-      const mockInst = [
-        { id: 'i1', name: 'Universidad Nacional Autónoma', address: 'Av. Universitaria 123', logoUrl: 'https://logo.clearbit.com/unam.mx', _count: { users: 1250, projects: 45 } },
-        { id: 'i2', name: 'Instituto Tecnológico de Monterrey', address: 'Calle del Sol 456', logoUrl: 'https://logo.clearbit.com/tec.mx', _count: { users: 850, projects: 30 } },
-        { id: 'i3', name: 'Colegio Americano', address: 'Residencial Las Lomas', logoUrl: 'https://logo.clearbit.com/asf.edu.mx', _count: { users: 420, projects: 12 } },
-        { id: 'i4', name: 'Harvard University', address: 'Cambridge, MA', logoUrl: 'https://logo.clearbit.com/harvard.edu', _count: { users: 5000, projects: 200 } },
-      ];
-
-      setInstitutions([...apiInst, ...mockInst]);
+      setInstitutions(res.data);
     } catch (error) {
       console.error('Error fetching institutions:', error);
     } finally {

@@ -40,18 +40,10 @@ export default function UserDirectoryScreen() {
       if (profile.data.institutionId) {
         setInstitutionId(profile.data.institutionId);
         const res = await api.get(`/institutions/${profile.data.institutionId}`);
-        apiUsers = res.data.users;
+        apiUsers = res.data.users || [];
       }
       
-      const mockUsers = [
-        { id: 'm1', fullName: 'Carlos Rodríguez', email: 'carlos.r@escuela.com', role: 'STUDENT', avatarUrl: 'https://i.pravatar.cc/150?u=carlos' },
-        { id: 'm2', fullName: 'Ana Martínez', email: 'ana.m@escuela.com', role: 'TEACHER', avatarUrl: 'https://i.pravatar.cc/150?u=ana' },
-        { id: 'm3', fullName: 'Roberto Gómez', email: 'roberto.g@soporte.com', role: 'SUPPORT', avatarUrl: 'https://i.pravatar.cc/150?u=roberto' },
-        { id: 'm4', fullName: 'Elena Piri', email: 'elena.p@escuela.com', role: 'STUDENT', avatarUrl: 'https://i.pravatar.cc/150?u=elena' },
-        { id: 'm5', fullName: 'Marcos Soto', email: 'marcos.s@escuela.com', role: 'TEACHER', avatarUrl: 'https://i.pravatar.cc/150?u=marcos' },
-      ];
-
-      setUsers([...apiUsers, ...mockUsers]);
+      setUsers(apiUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {

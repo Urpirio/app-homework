@@ -53,7 +53,20 @@ export class TasksService {
     return this.prisma.task.findFirst({
       where: { 
         id,
-        project: { userId }
+        OR: [
+          { project: { userId } },
+          { project: { members: { some: { userId } } } }
+        ]
+      },
+      include: { 
+        project: {
+          include: { user: { select: { fullName: true } } }
+        },
+        unit: true,
+        submissions: {
+          where: { studentId: userId },
+          take: 1
+        }
       },
     });
   }

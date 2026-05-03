@@ -40,7 +40,7 @@ const MOCK_STUDENTS = [
   { id: 'u8', name: 'Roberto Gómez', role: 'student', avatar: null, isContact: false },
 ];
 
-export default function SubjectStudentsScreen() {
+const SubjectStudentsScreen = () => {
   const { id, name } = useLocalSearchParams();
   const { theme } = useTheme();
   const [search, setSearch] = useState('');
@@ -189,7 +189,9 @@ export default function SubjectStudentsScreen() {
       </ThemedView>
     </SafeAreaView>
   );
-}
+};
+
+export default SubjectStudentsScreen;
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },

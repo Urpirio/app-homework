@@ -3,7 +3,7 @@ import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -11,9 +11,11 @@ import {
   Dimensions, 
   ScrollView,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import api from '@/utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -53,11 +55,39 @@ const MOCK_BOOKS_DETAILS: Record<string, any> = {
   }
 };
 
-export default function BookDetailScreen() {
+const BookDetailScreen = () => {
   const { id } = useLocalSearchParams();
   const { theme } = useTheme();
+  const [book, setBook] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const book = MOCK_BOOKS_DETAILS[id as string] || MOCK_BOOKS_DETAILS['1'];
+  useEffect(() => {
+    const fetchBook = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get(`/library/books/${id}`);
+        setBook(response.data);
+      } catch (error) {
+        console.error('Error fetching book details:', error);
+        setBook(MOCK_BOOKS_DETAILS[id as string] || MOCK_BOOKS_DETAILS['1']);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBook();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+        <ThemedView style={styles.centered}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </ThemedView>
+      </SafeAreaView>
+    );
+  }
+
+  if (!book) return null;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -95,7 +125,9 @@ export default function BookDetailScreen() {
                 </View>
                 <View style={[styles.metaItem, { backgroundColor: theme.colors.card }]}>
                   <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>Categoría</Text>
-                  <Text style={[styles.metaValue, { color: theme.colors.text }]}>{book.category}</Text>
+                  <Text style={[styles.metaValue, { color: theme.colors.text }]}>
+                    {typeof book.category === 'object' ? book.category?.name : book.category}
+                  </Text>
                 </View>
               </View>
 
@@ -129,9 +161,12 @@ export default function BookDetailScreen() {
   );
 }
 
+export default BookDetailScreen;
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   container: { flex: 1 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15 },
   backBtn: { width: 40, height: 40, justifyContent: 'center' },
   statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, gap: 6 },

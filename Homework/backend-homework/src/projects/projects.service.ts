@@ -37,6 +37,7 @@ export class ProjectsService {
       where: { userId },
       include: {
         _count: { select: { tasks: true } },
+        tasks: true,
         members: { include: { user: { select: { id: true, fullName: true, avatarUrl: true } } } },
       },
       orderBy: { updatedAt: 'desc' },
@@ -50,6 +51,7 @@ export class ProjectsService {
       },
       include: {
         _count: { select: { tasks: true } },
+        tasks: true,
         members: { include: { user: { select: { id: true, fullName: true, avatarUrl: true } } } },
         user: { select: { id: true, fullName: true } },
       },

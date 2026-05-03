@@ -37,18 +37,28 @@ export default function HomeScreen() {
         pending: projects.reduce((acc: number, p: any) => acc + (p._count?.tasks || 0), 0),
         subjects: projects.length,
       });
+
+      // Extract and flatten upcoming tasks
+      const allTasks = projects.flatMap((p: any) => 
+        (p.tasks || []).map((t: any) => ({
+          ...t,
+          subject: p.name,
+          priority: t.priority?.toLowerCase() || 'normal'
+        }))
+      );
+      
+      const sorted = allTasks
+        .filter((t: any) => !t.isCompleted)
+        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+        .slice(0, 5);
+
+      setUpcomingTasks(sorted);
     } catch (error) {
       console.error('Error fetching home data:', error);
-      setStats({ pending: 3, subjects: 4 });
+      setStats({ pending: 0, subjects: 0 });
     } finally {
       setLoading(false);
     }
-
-    setUpcomingTasks([
-      { id: 't1', title: 'Ensayo de Historia Universal', subject: 'Historia', dueDate: 'Hoy, 11:59 PM', priority: 'urgent' },
-      { id: 't2', title: 'Ejercicios Cap. 7 - Álgebra', subject: 'Matemáticas', dueDate: 'Mañana', priority: 'high' },
-      { id: 't3', title: 'Lectura: El Quijote', subject: 'Lengua', dueDate: 'Vie, 10:00 AM', priority: 'normal' },
-    ]);
   };
 
   useFocusEffect(
@@ -147,7 +157,7 @@ export default function HomeScreen() {
                   <View style={[styles.taskPriorityDot, { backgroundColor: getPriorityColor(task.priority) }]} />
                   <View style={styles.taskInfo}>
                     <Text style={[styles.taskTitle, { color: theme.colors.text }]} numberOfLines={1}>{task.title}</Text>
-                    <Text style={[styles.taskSub, { color: theme.colors.textSecondary }]}>{task.subject} • {task.dueDate}</Text>
+                    <Text style={[styles.taskSub, { color: theme.colors.textSecondary }]}>{task.subject} • {new Date(task.dueDate).toLocaleDateString()}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={theme.colors.border} />
                 </Pressable>
