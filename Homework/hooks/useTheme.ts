@@ -38,16 +38,10 @@ export interface UseThemeReturn {
  * - 7.3: App updates colors in real-time when system theme changes
  */
 export function useTheme(): UseThemeReturn {
-  // Detect the current color scheme from the system
-  // Returns 'light', 'dark', or null (defaults to light if null)
   const colorScheme = useColorScheme();
-  
-  // Determine if dark mode is active
   const isDark = colorScheme === 'dark';
-  
-  // Select the appropriate theme based on the color scheme
   const theme = isDark ? darkTheme : lightTheme;
-  
+
   return {
     theme,
     isDark,

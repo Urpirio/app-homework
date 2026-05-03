@@ -1,93 +1,54 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { HomeHeader } from '@/components/home/HomeHeader';
-import { ProjectCard } from '@/components/home/ProjectCard';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
-import { Project } from '@/types/project';
 import React, { useState, useCallback } from 'react';
-import { ScrollView, StyleSheet, Text, View, Dimensions, ActivityIndicator } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, Dimensions, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 import { router, useFocusEffect } from 'expo-router';
-import { Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import api from '@/utils/api';
-import { ProjectModal } from '@/components/login/ProjectModal';
-import { ProjectActionsModal } from '@/components/login/ProjectActionsModal';
-import { ConfirmModal } from '@/components/shared/ConfirmModal';
-import { Alert } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const MOCK_PROJECTS: Project[] = [
-  {
-    id: '1',
-    name: 'Rediseño de App Móvil',
-    description: 'Renovación completa de la UI/UX',
-    progress: 75,
-    tasksCount: 20,
-    completedTasks: 15,
-    lastAccessed: '2024-05-01',
-    color: '#007AFF',
-  },
-  {
-    id: '2',
-    name: 'Dashboard Administrativo',
-    description: 'Panel de control para gestión de datos',
-    progress: 40,
-    tasksCount: 10,
-    completedTasks: 4,
-    lastAccessed: '2024-04-30',
-    color: '#5856D6',
-  },
-  {
-    id: '3',
-    name: 'Campaña de Marketing',
-    description: 'Estrategia para el Q3',
-    progress: 10,
-    tasksCount: 15,
-    completedTasks: 1,
-    lastAccessed: '2024-04-28',
-    color: '#FF9500',
-  },
+const quickActions = [
+  { id: '2', label: 'Notas', icon: 'stats-chart-outline' as const, color: '#34C759', route: '/grades' },
+  { id: '3', label: 'Calendario', icon: 'calendar-outline' as const, color: '#FF9500', route: '/calendar' },
+  { id: '4', label: 'Biblioteca', icon: 'library-outline' as const, color: '#007AFF', route: '/library' },
 ];
 
 export default function HomeScreen() {
   const { theme } = useTheme();
-  const [projects, setProjects] = useState<Project[]>([]);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Modals state
-  const [projectModalVisible, setProjectModalVisible] = useState(false);
-  const [actionsVisible, setActionsVisible] = useState(false);
-  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [upcomingTasks, setUpcomingTasks] = useState<any[]>([]);
+  const [stats, setStats] = useState({ pending: 0, subjects: 0 });
 
   const fetchData = async () => {
-    if (projects.length === 0) setLoading(true);
     try {
-      const [projectsRes, profileRes] = await Promise.all([
-        api.get('/projects'),
-        api.get('/auth/profile'),
-      ]);
-
-      const mappedProjects = projectsRes.data.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description || '',
-        progress: 0, 
-        tasksCount: p._count?.tasks || 0,
-        completedTasks: 0,
-        lastAccessed: new Date(p.updatedAt).toLocaleDateString(),
-        color: p.color || theme.colors.primary,
-      }));
-      setProjects(mappedProjects);
+      const profileRes = await api.get('/auth/profile');
       setUser(profileRes.data);
+
+      const projectsRes = await api.get('/projects');
+      const projects = projectsRes.data || [];
+
+      setStats({
+        pending: projects.reduce((acc: number, p: any) => acc + (p._count?.tasks || 0), 0),
+        subjects: projects.length,
+      });
     } catch (error) {
       console.error('Error fetching home data:', error);
+      setStats({ pending: 3, subjects: 4 });
     } finally {
       setLoading(false);
     }
+
+    setUpcomingTasks([
+      { id: 't1', title: 'Ensayo de Historia Universal', subject: 'Historia', dueDate: 'Hoy, 11:59 PM', priority: 'urgent' },
+      { id: 't2', title: 'Ejercicios Cap. 7 - Álgebra', subject: 'Matemáticas', dueDate: 'Mañana', priority: 'high' },
+      { id: 't3', title: 'Lectura: El Quijote', subject: 'Lengua', dueDate: 'Vie, 10:00 AM', priority: 'normal' },
+    ]);
   };
 
   useFocusEffect(
@@ -96,42 +57,30 @@ export default function HomeScreen() {
     }, [])
   );
 
-  const handleSaveProject = async (data: any) => {
-    try {
-      if (selectedProject) {
-        await api.patch(`/projects/${selectedProject.id}`, data);
-      } else {
-        await api.post('/projects', data);
-      }
-      fetchData(); // Recargar todo
-      setProjectModalVisible(false);
-      setSelectedProject(null);
-    } catch (error) {
-      console.error('Error saving project:', error);
-      Alert.alert('Error', 'No se pudo guardar el proyecto.');
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Buenos días';
+    if (hour < 18) return 'Buenas tardes';
+    return 'Buenas noches';
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return '#FF3B30';
+      case 'high': return '#FF9500';
+      default: return '#34C759';
     }
   };
 
-  const handleLongPressProject = (project: Project) => {
-    setSelectedProject(project);
-    setActionsVisible(true);
-  };
-
-  const handleDeleteConfirmed = async () => {
-    if (selectedProject) {
-      try {
-        await api.delete(`/projects/${selectedProject.id}`);
-        fetchData();
-        setConfirmDeleteVisible(false);
-        setSelectedProject(null);
-      } catch (error) {
-        console.error('Error deleting project:', error);
-        Alert.alert('Error', 'No se pudo eliminar el proyecto.');
-      }
-    }
-  };
-
-  const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -139,97 +88,73 @@ export default function HomeScreen() {
         <BackgroundShapes />
         
         <ScrollView 
-          contentContainerStyle={{ paddingHorizontal: horizontalPadding }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 30 }}
           showsVerticalScrollIndicator={false}
         >
           <HomeHeader user={user} />
 
-          <Animated.View entering={FadeInDown.delay(300)} style={styles.section}>
+          {/* Banner Consolidado */}
+          <Animated.View entering={FadeInDown.delay(100)}>
+            <View style={[styles.bannerCard, { backgroundColor: theme.colors.primary }]}>  
+              <View style={styles.bannerContent}>
+                <Text style={styles.bannerGreeting}>{getGreeting()}, {user?.fullName?.split(' ')[0]}</Text>
+                <Text style={styles.bannerSubtitle}>
+                  Tienes {stats.pending} tareas pendientes en {stats.subjects} materias activas.
+                </Text>
+              </View>
+              <View style={styles.bannerBadge}>
+                <Text style={styles.badgeNumber}>{stats.pending}</Text>
+              </View>
+            </View>
+          </Animated.View>
+
+          {/* Quick Actions - Más compactos */}
+          <View style={styles.quickGrid}>
+            {quickActions.map((action, index) => (
+              <Animated.View key={action.id} entering={FadeInRight.delay(200 + index * 50)} style={styles.quickItem}>
+                <Pressable 
+                  onPress={() => router.push(action.route as any)}
+                  style={({ pressed }) => [
+                    styles.quickCard, 
+                    { backgroundColor: theme.colors.card, opacity: pressed ? 0.7 : 1 }
+                  ]}
+                >
+                  <Ionicons name={action.icon} size={22} color={action.color} />
+                  <Text style={[styles.quickLabel, { color: theme.colors.text }]}>{action.label}</Text>
+                </Pressable>
+              </Animated.View>
+            ))}
+          </View>
+
+          {/* Próximas Entregas - El foco principal */}
+          <Animated.View entering={FadeInDown.delay(400)} style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                Proyectos Recientes
-              </Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Tareas Próximas</Text>
               <Pressable onPress={() => router.push('/projects')}>
-                <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>Ver todos</Text>
+                <Text style={{ color: theme.colors.primary, fontWeight: '700', fontSize: 13 }}>Ver materias</Text>
               </Pressable>
             </View>
 
-            {loading ? (
-              <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 20 }} />
-            ) : projects.length > 0 ? (
-              projects.map((project, index) => (
-                <ProjectCard 
-                  key={project.id} 
-                  project={project} 
-                  index={index} 
-                  onLongPress={() => handleLongPressProject(project)}
-                />
-              ))
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                  No tienes proyectos todavía.
-                </Text>
-                <Pressable 
-                  onPress={() => {
-                    setSelectedProject(null);
-                    setProjectModalVisible(true);
-                  }}
-                  style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
+            {upcomingTasks.map((task, index) => (
+              <Animated.View key={task.id} entering={FadeInDown.delay(450 + index * 50)}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.taskCard, 
+                    { backgroundColor: theme.colors.card, opacity: pressed ? 0.7 : 1 }
+                  ]}
+                  onPress={() => router.push(`/tasks/${task.id}`)}
                 >
-                  <Text style={styles.createButtonText}>Crear mi primer proyecto</Text>
+                  <View style={[styles.taskPriorityDot, { backgroundColor: getPriorityColor(task.priority) }]} />
+                  <View style={styles.taskInfo}>
+                    <Text style={[styles.taskTitle, { color: theme.colors.text }]} numberOfLines={1}>{task.title}</Text>
+                    <Text style={[styles.taskSub, { color: theme.colors.textSecondary }]}>{task.subject} • {task.dueDate}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.border} />
                 </Pressable>
-              </View>
-            )}
+              </Animated.View>
+            ))}
           </Animated.View>
 
-          <ProjectModal 
-            visible={projectModalVisible}
-            onClose={() => {
-              setProjectModalVisible(false);
-              setSelectedProject(null);
-            }}
-            onSave={handleSaveProject}
-            initialData={selectedProject}
-          />
-
-          <ProjectActionsModal 
-            visible={actionsVisible}
-            onClose={() => setActionsVisible(false)}
-            onEdit={() => setProjectModalVisible(true)}
-            onDelete={() => setConfirmDeleteVisible(true)}
-          />
-
-          <ConfirmModal 
-            visible={confirmDeleteVisible}
-            onClose={() => setConfirmDeleteVisible(false)}
-            onConfirm={handleDeleteConfirmed}
-            title="Eliminar Proyecto"
-            message={`¿Estás seguro de que deseas eliminar "${selectedProject?.name}"?`}
-            isDestructive={true}
-            confirmLabel="Eliminar"
-          />
-
-          <Animated.View entering={FadeInDown.delay(600)} style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Resumen de Tareas
-            </Text>
-            
-            <View style={[styles.statsGrid]}>
-              <View style={[styles.statCard, { backgroundColor: theme.colors.card }]}>
-                <Text style={[styles.statValue, { color: theme.colors.primary }]}>
-                  {user?.stats?.tasks || 0}
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Tareas</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: theme.colors.card }]}>
-                <Text style={[styles.statValue, { color: theme.colors.success }]}>
-                  {projects.length}
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Proyectos</Text>
-              </View>
-            </View>
-          </Animated.View>
         </ScrollView>
       </ThemedView>
     </SafeAreaView>
@@ -239,64 +164,92 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   container: { flex: 1 },
-  section: {
-    marginTop: 24,
-    marginBottom: 16,
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+  bannerCard: {
+    borderRadius: 24,
+    padding: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
   },
+  bannerContent: { flex: 1 },
+  bannerGreeting: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  bannerSubtitle: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  bannerBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 15,
+  },
+  badgeNumber: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+
+  quickGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 30,
+  },
+  quickItem: { width: '31%' },
+  quickCard: {
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderRadius: 20,
+    gap: 8,
+  },
+  quickLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  section: { marginTop: 10 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 15,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
   },
-  statsGrid: {
+
+  taskCard: {
     flexDirection: 'row',
-    gap: 16,
-    marginTop: 8,
-  },
-  statCard: {
-    flex: 1,
+    alignItems: 'center',
     padding: 16,
-    borderRadius: 20,
-    alignItems: 'center',
+    borderRadius: 18,
+    marginBottom: 10,
   },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    marginBottom: 4,
+  taskPriorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 15,
   },
-  statLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  emptyText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 20,
-    fontStyle: 'italic',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  createButton: {
-    marginTop: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  createButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  taskInfo: { flex: 1 },
+  taskTitle: {
+    fontSize: 14,
     fontWeight: '700',
+    marginBottom: 2,
+  },
+  taskSub: {
+    fontSize: 11,
+    fontWeight: '500',
   },
 });

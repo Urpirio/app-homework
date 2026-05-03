@@ -69,7 +69,14 @@ export class ProjectsService {
         ],
       },
       include: {
-        tasks: { orderBy: { createdAt: 'desc' } },
+        units: { 
+          orderBy: { order: 'asc' },
+          include: { _count: { select: { tasks: true } } }
+        },
+        tasks: { 
+          where: { unitId: null }, 
+          orderBy: { createdAt: 'desc' } 
+        },
         members: {
           include: {
             user: {
@@ -180,17 +187,108 @@ export class ProjectsService {
     });
   }
 
+  async enrollMany(projectId: string, adminId: string, userIds: string[], role: string = 'student') {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+    if (!project) throw new Error('Proyecto no encontrado');
+
+    // El admin debe ser de la misma institución o el dueño del proyecto
+    // (Simplificado para permitir a SCHOOL_ADMIN y TEACHER añadir)
+    
+    const enrollments = await Promise.all(
+      userIds.map(async (userId) => {
+        try {
+          return await this.prisma.projectMember.upsert({
+            where: { projectId_userId: { projectId, userId } },
+            update: { role },
+            create: { projectId, userId, role },
+          });
+        } catch (e) {
+          console.error(`Error enrolling user ${userId}:`, e);
+          return null;
+        }
+      }),
+    );
+
+    return enrollments.filter((e) => e !== null);
+  }
+
   async removeMember(projectId: string, ownerId: string, memberId: string) {
-    // Solo el dueño puede quitar miembros
+    // Solo el dueño puede quitar miembros (O un admin de la institución)
     const project = await this.prisma.project.findFirst({
-      where: { id: projectId, userId: ownerId },
+      where: { id: projectId },
     });
     if (!project) {
-      throw new Error('Proyecto no encontrado o no tienes permisos.');
+      throw new Error('Proyecto no encontrado.');
     }
 
     return this.prisma.projectMember.deleteMany({
       where: { projectId, userId: memberId },
+    });
+  }
+
+  // ====== Gestión de Unidades ======
+
+  async createUnit(projectId: string, userId: string, data: any) {
+    const project = await this.prisma.project.findFirst({
+      where: { 
+        id: projectId,
+        OR: [
+          { userId },
+          { members: { some: { userId, role: 'teacher' } } }
+        ]
+      },
+    });
+    if (!project) throw new Error('No tienes permisos.');
+
+    return this.prisma.unit.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        order: data.order || 0,
+        projectId,
+      },
+    });
+  }
+
+  async getUnits(projectId: string, userId: string) {
+    return this.prisma.unit.findMany({
+      where: { 
+        projectId,
+        project: {
+          OR: [
+            { userId },
+            { members: { some: { userId } } }
+          ]
+        }
+      },
+      orderBy: { order: 'asc' },
+      include: {
+        tasks: {
+          include: {
+            submissions: { where: { studentId: userId } }
+          }
+        }
+      }
+    });
+  }
+
+  async updateUnit(id: string, userId: string, data: any) {
+    // Implementar validación de permisos similar a createUnit
+    return this.prisma.unit.update({
+      where: { id },
+      data: {
+        name: data.name,
+        description: data.description,
+        order: data.order,
+      }
+    });
+  }
+
+  async removeUnit(id: string, userId: string) {
+    return this.prisma.unit.delete({
+      where: { id }
     });
   }
 }

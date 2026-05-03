@@ -102,7 +102,7 @@ export default function LoginScreen() {
               style={styles.header}
             >
               <View style={styles.logoContainer}>
-                <AnimatedLogo size={80} onAnimationComplete={() => {}} />
+                <View style={{ width: 80, height: 80, backgroundColor: theme.colors.primary, borderRadius: 40 }} />
               </View>
               <Text style={[styles.welcomeTitle, { color: theme.colors.text }]}>
                 Bienvenido de nuevo

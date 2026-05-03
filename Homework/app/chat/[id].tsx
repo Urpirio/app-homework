@@ -52,7 +52,8 @@ interface Message {
 }
 
 export default function ChatScreen() {
-  const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
+  const { id, name, type } = useLocalSearchParams<{ id: string; name: string; type?: 'user' | 'project' }>();
+  const isGroup = type === 'project';
   const router = useRouter();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -86,11 +87,18 @@ export default function ChatScreen() {
     const loadMessages = async () => {
       try {
         setLoadingMessages(true);
-        const response = await api.get(`/messages/${id}`);
+        const endpoint = isGroup ? `/messages/project/${id}` : `/messages/${id}`;
+        const response = await api.get(endpoint);
+        
+        // Obtener ID del usuario actual para comparar sender
+        const profileRes = await api.get('/auth/profile');
+        const myId = profileRes.data.id;
+
         const mapped = response.data.map((m: any) => ({
           id: m.id,
           text: m.text,
-          sender: m.sender?.id === id ? 'other' : 'me',
+          sender: m.sender?.id === myId ? 'me' : 'other',
+          senderName: m.sender?.fullName,
           timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           attachment: m.attachment ? {
             type: m.attachment.mimeType?.startsWith('image/') ? 'image' : 
@@ -141,9 +149,8 @@ export default function ChatScreen() {
       }
 
       // Enviar mensaje vía REST (mientras no esté WebSocket integrado en frontend)
-      const response = await api.post(`/messages/${id}`, {
+      const response = await api.post(`/messages/${id}?type=${isGroup ? 'project' : 'user'}`, {
         text: message.trim() || (currentAttachment ? 'Archivo adjunto' : ''),
-        receiverId: id,
         attachment: attachmentData,
       });
 
@@ -344,6 +351,11 @@ export default function ChatScreen() {
             ? [styles.myBubble, { backgroundColor: theme.colors.primary }] 
             : [styles.otherBubble, { backgroundColor: theme.colors.card }]
         ]}>
+          {!isMe && isGroup && (
+            <Text style={[styles.senderName, { color: theme.colors.primary }]}>
+              {(item as any).senderName}
+            </Text>
+          )}
           {item.attachment && (
             <View style={styles.messageAttachment}>
               {(item.attachment.type === 'image' || item.attachment.type === 'video') ? (
@@ -434,19 +446,31 @@ export default function ChatScreen() {
           
           <TouchableOpacity 
             style={styles.headerInfo}
-            onPress={() => router.push({
-              pathname: '/collaborator/[id]',
-              params: { id, name }
-            })}
+            onPress={() => {
+              if (isGroup) {
+                router.push(`/projects/${id}`);
+              } else {
+                router.push({
+                  pathname: '/collaborator/[id]',
+                  params: { id, name }
+                });
+              }
+            }}
           >
-            <View style={[styles.avatarHeader, { backgroundColor: theme.colors.primaryLight }]}>
-              <Text style={[styles.avatarTextHeader, { color: theme.colors.primary }]}>
-                {name?.charAt(0)}
-              </Text>
+            <View style={[styles.avatarHeader, { backgroundColor: isGroup ? theme.colors.primary : theme.colors.primaryLight }]}>
+              {isGroup ? (
+                <Ionicons name="people" size={20} color="#FFFFFF" />
+              ) : (
+                <Text style={[styles.avatarTextHeader, { color: theme.colors.primary }]}>
+                  {name?.charAt(0)}
+                </Text>
+              )}
             </View>
             <View>
               <Text style={[styles.headerName, { color: theme.colors.text }]}>{name}</Text>
-              <Text style={[styles.headerStatus, { color: theme.colors.success }]}>En línea</Text>
+              <Text style={[styles.headerStatus, { color: theme.colors.success }]}>
+                {isGroup ? 'Chat de Aula' : 'En línea'}
+              </Text>
             </View>
           </TouchableOpacity>
           
@@ -766,6 +790,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     alignSelf: 'flex-end',
     marginTop: 4,
+  },
+  senderName: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
   },
   messageAttachment: {
     borderRadius: 12,

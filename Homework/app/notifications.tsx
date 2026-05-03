@@ -280,7 +280,7 @@ const RequestItem = ({ request, index, onAccept, onReject }: any) => {
         <View style={styles.textContainer}>
           <Text style={[styles.itemTitle, { color: theme.colors.text }]}>{request.collaborator.fullName}</Text>
           <Text style={[styles.itemMessage, { color: theme.colors.textSecondary }]}>
-            Quiere agregarte como colaborador para trabajar en proyectos juntos.
+            Quiere agregarte como contacto para estudiar juntos.
           </Text>
           <View style={styles.requestActions}>
             <Pressable 

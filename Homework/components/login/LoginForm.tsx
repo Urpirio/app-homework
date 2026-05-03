@@ -83,7 +83,6 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
     try {
       setLoading(true);
       await onSubmit(values);
-      router.replace('/home');
     } catch (error: any) {
       console.error('Login error:', error);
       const message = error.message || 'Correo o contraseña incorrectos';

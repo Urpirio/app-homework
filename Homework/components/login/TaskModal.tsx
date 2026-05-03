@@ -236,7 +236,7 @@ export const TaskModal = ({ visible, onClose, onSave, initialData, userRole }: T
           </View>
         )}
 
-        {isEditing && (userRole === UserRole.TEACHER || userRole === UserRole.SCHOOL_ADMIN) && (
+        {isEditing && (userRole === UserRole.TEACHER || userRole === UserRole.SCHOOL_ADMIN || userRole === UserRole.SUPER_ADMIN) && (
           <View style={styles.teacherSection}>
             <Pressable 
               style={[styles.teacherAction, { backgroundColor: theme.colors.primaryLight }]}

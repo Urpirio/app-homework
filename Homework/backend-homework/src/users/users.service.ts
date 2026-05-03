@@ -32,15 +32,115 @@ export class UsersService {
   }
 
   async getUserStats(userId: string) {
-    const [ownedProjects, memberProjects, ownedTasks, memberTasks] = await Promise.all([
+    const [ownedProjects, memberProjects, submissions] = await Promise.all([
       this.prisma.project.count({ where: { userId } }),
       this.prisma.project.count({ where: { members: { some: { userId } } } }),
-      this.prisma.task.count({ where: { project: { userId } } }),
-      this.prisma.task.count({ where: { project: { members: { some: { userId } } } } }),
+      this.prisma.submission.aggregate({
+        where: { studentId: userId, status: 'GRADED' },
+        _avg: { grade: true },
+        _count: { id: true },
+      }),
     ]);
     return { 
       projects: ownedProjects + memberProjects, 
-      tasks: ownedTasks + memberTasks 
+      avgGrade: submissions._avg.grade || 0,
+      completedTasks: submissions._count.id || 0,
+    };
+  }
+
+  async getStudentProfile(studentId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      include: {
+        classroom: true,
+        submissions: {
+          include: {
+            task: {
+              include: {
+                project: {
+                  include: { user: { select: { fullName: true } } }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!user) return null;
+
+    const stats = await this.getUserStats(studentId);
+    const pendingTasks = await this.prisma.task.count({
+      where: {
+        project: { members: { some: { userId: studentId } } },
+        submissions: { none: { studentId } }
+      }
+    });
+
+    return {
+      ...user,
+      stats: {
+        ...stats,
+        pendingTasks,
+        attendance: "95%" // Placeholder for now
+      },
+      subjects: user.submissions.map(s => ({
+        id: s.task.project.id,
+        name: s.task.project.name,
+        teacher: s.task.project.user.fullName,
+        grade: s.grade
+      }))
+    };
+  }
+
+  async getTeacherProfile(teacherId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      include: {
+        projects: {
+          include: {
+            classroom: true,
+            _count: { select: { members: true } }
+          }
+        },
+        projectMemberships: {
+          where: { role: 'teacher' },
+          include: {
+            project: {
+              include: {
+                classroom: true,
+                _count: { select: { members: true } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!user) return null;
+
+    const allProjects = [...user.projects, ...user.projectMemberships.map(m => m.project)];
+    const totalStudents = allProjects.reduce((acc, p) => acc + p._count.members, 0);
+
+    const submissions = await this.prisma.submission.aggregate({
+      where: { task: { projectId: { in: allProjects.map(p => p.id) } }, status: 'GRADED' },
+      _avg: { grade: true }
+    });
+
+    return {
+      ...user,
+      stats: {
+        totalStudents,
+        totalSubjects: allProjects.length,
+        avgPerformance: submissions._avg.grade || 0,
+        attendance: "98%" // Placeholder
+      },
+      subjects: allProjects.map(p => ({
+        id: p.id,
+        name: p.name,
+        classroom: p.classroom?.name || 'N/A',
+        students: p._count.members
+      }))
     };
   }
 

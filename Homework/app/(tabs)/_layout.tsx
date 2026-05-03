@@ -8,19 +8,21 @@ import api from '@/utils/api';
 import { UserRole } from '@/types/auth';
 
 export default function TabLayout() {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchRole = async () => {
       try {
         const res = await api.get('/auth/profile');
-        setRole(res.data.role);
+        if (isMounted) setRole(res.data.role);
       } catch (error) {
         console.error('Error fetching role for tabs:', error);
       }
     };
     fetchRole();
+    return () => { isMounted = false; };
   }, []);
 
   return (
@@ -38,7 +40,7 @@ export default function TabLayout() {
         },
         tabBarBackground: () => 
           Platform.OS === 'ios' ? (
-            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint={theme.dark ? 'dark' : 'light'} />
+            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint={isDark ? 'dark' : 'light'} />
           ) : null,
         tabBarLabelStyle: {
           fontSize: 12,
@@ -64,9 +66,22 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="calendar"
+        options={{
+          title: 'Calendario',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons 
+              name={focused ? 'calendar' : 'calendar-outline'} 
+              size={size} 
+              color={color} 
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="collaborators"
         options={{
-          title: 'Colaboradores',
+          title: 'Mensajes',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons 
               name={focused ? 'people' : 'people-outline'} 
@@ -76,21 +91,20 @@ export default function TabLayout() {
           ),
         }}
       />
-      {(role === UserRole.SCHOOL_ADMIN || role === UserRole.SUPER_ADMIN) && (
-        <Tabs.Screen
-          name="admin/index"
-          options={{
-            title: 'Admin',
-            tabBarIcon: ({ color, size, focused }) => (
-              <Ionicons 
-                name={focused ? 'stats-chart' : 'stats-chart-outline'} 
-                size={size} 
-                color={color} 
-              />
-            ),
-          }}
-        />
-      )}
+      <Tabs.Screen
+        name="admin-dashboard"
+        options={{
+          title: 'Admin',
+          href: (role === UserRole.SCHOOL_ADMIN || role === UserRole.SUPER_ADMIN) ? '/admin-dashboard' : null,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons 
+              name={focused ? 'stats-chart' : 'stats-chart-outline'} 
+              size={size} 
+              color={color} 
+            />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

@@ -69,7 +69,7 @@ export default function QRScannerScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
               <Ionicons name="close" size={30} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Escanear Colaborador</Text>
+            <Text style={styles.headerTitle}>Escanear Contacto</Text>
             <View style={{ width: 40 }} />
           </View>
 
@@ -84,7 +84,7 @@ export default function QRScannerScreen() {
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Enfoca el código QR de tu colaborador</Text>
+            <Text style={styles.footerText}>Enfoca el código QR de tu contacto</Text>
           </View>
         </View>
       </CameraView>

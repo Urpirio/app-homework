@@ -16,6 +16,12 @@ import { join } from 'path';
 import { EmailModule } from './email/email.module';
 import { InstitutionsModule } from './institutions/institutions.module';
 import { SubmissionsModule } from './submissions/submissions.module';
+import { LibraryModule } from './library/library.module';
+import { SchedulesModule } from './schedules/schedules.module';
+import { ClassroomsModule } from './classrooms/classrooms.module';
+import { SubjectsModule } from './subjects/subjects.module';
+import { TicketsModule } from './tickets/tickets.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [
@@ -36,6 +42,12 @@ import { SubmissionsModule } from './submissions/submissions.module';
     EmailModule,
     InstitutionsModule,
     SubmissionsModule,
+    LibraryModule,
+    SchedulesModule,
+    ClassroomsModule,
+    SubjectsModule,
+    TicketsModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -33,4 +33,22 @@ export class InstitutionsController {
   async getStats(@Param('id') id: string) {
     return this.institutionsService.getStats(id);
   }
+
+  @Get(':id/students')
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
+  async getStudents(@Param('id') id: string) {
+    return this.institutionsService.getStudents(id);
+  }
+
+  @Get(':id/teachers')
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
+  async getTeachers(@Param('id') id: string) {
+    return this.institutionsService.getTeachers(id);
+  }
+
+  @Get(':id/admins')
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
+  async getAdmins(@Param('id') id: string) {
+    return this.institutionsService.getAdmins(id);
+  }
 }

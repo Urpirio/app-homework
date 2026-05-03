@@ -22,17 +22,36 @@ export class MessagesController {
     );
   }
 
-  @Post(':collaboratorId')
+  @Post(':targetId')
   sendMessage(
     @Request() req: any,
-    @Param('collaboratorId') collaboratorId: string,
+    @Param('targetId') targetId: string,
+    @Query('type') type: 'user' | 'project',
     @Body() body: { text: string; attachment?: any },
   ) {
     return this.messagesService.sendMessage(
       req.user.userId,
-      collaboratorId,
       body.text,
-      body.attachment,
+      {
+        receiverId: type === 'user' ? targetId : undefined,
+        projectId: type === 'project' ? targetId : undefined,
+        attachment: body.attachment,
+      }
+    );
+  }
+
+  @Get('project/:projectId')
+  getProjectMessages(
+    @Request() req: any,
+    @Param('projectId') projectId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.messagesService.getProjectMessages(
+      req.user.userId,
+      projectId,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 50,
     );
   }
 

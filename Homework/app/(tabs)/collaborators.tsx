@@ -54,6 +54,8 @@ export default function CollaboratorsScreen() {
   const [invitationSent, setInvitationSent] = useState(false);
   const { scannedCode, projectId, autoOpenAdd } = useLocalSearchParams<{ scannedCode?: string; projectId?: string; autoOpenAdd?: string }>();
   const [isFabOpen, setIsFabOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
+  const [subjects, setSubjects] = useState<any[]>([]);
   const fabAnim = useSharedValue(0);
 
   const toggleFab = () => {
@@ -114,6 +116,21 @@ export default function CollaboratorsScreen() {
       console.error('Error fetching collaborators:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSubjects = async () => {
+    try {
+      const res = await api.get('/auth/profile');
+      const instId = res.data.institutionId;
+      // Por ahora mockeamos grupos de materias si no hay endpoint directo
+      setSubjects([
+        { id: 'g1', name: 'Matemáticas 6to A', lastMsg: 'Prof. Alberto: Recuerden la tarea...', time: '10:30 AM', unread: 2 },
+        { id: 'g2', name: 'Lengua Española 6to A', lastMsg: 'Dra. Elena: Examen el viernes', time: 'Ayer', unread: 0 },
+        { id: 'g3', name: 'Ciencias Naturales 5to B', lastMsg: 'Ana: ¿Alguien tiene el PDF?', time: 'Lun', unread: 5 },
+      ]);
+    } catch (error) {
+      console.error('Error fetching subjects:', error);
     }
   };
 
@@ -196,6 +213,7 @@ export default function CollaboratorsScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchCollaborators();
+      fetchSubjects();
     }, [])
   );
 
@@ -210,15 +228,31 @@ export default function CollaboratorsScreen() {
           <View style={{ paddingHorizontal: horizontalPadding }}>
             <View style={styles.header}>
               <View style={styles.headerTop}>
-                <Text style={[styles.title, { color: theme.colors.text }]}>Colaboradores</Text>
+                <Text style={[styles.title, { color: theme.colors.text }]}>Mensajes</Text>
               </View>
+            </View>
+
+            {/* Tab Switcher */}
+            <View style={[styles.tabContainer, { backgroundColor: theme.colors.card }]}>
+              <Pressable 
+                onPress={() => setActiveTab('chats')}
+                style={[styles.tab, activeTab === 'chats' && { backgroundColor: theme.colors.primary }]}
+              >
+                <Text style={[styles.tabText, { color: activeTab === 'chats' ? '#FFF' : theme.colors.textSecondary }]}>Directos</Text>
+              </Pressable>
+              <Pressable 
+                onPress={() => setActiveTab('groups')}
+                style={[styles.tab, activeTab === 'groups' && { backgroundColor: theme.colors.primary }]}
+              >
+                <Text style={[styles.tabText, { color: activeTab === 'groups' ? '#FFF' : theme.colors.textSecondary }]}>Materias</Text>
+              </Pressable>
             </View>
 
             <View style={[styles.searchBar, { backgroundColor: theme.colors.card }]}>
               <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
               <TextInput 
                 style={[styles.searchInput, { color: theme.colors.text }]}
-                placeholder="Buscar por nombre o rol..."
+                placeholder={activeTab === 'chats' ? "Buscar chat..." : "Buscar materia..."}
                 placeholderTextColor={theme.colors.textSecondary}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -229,28 +263,8 @@ export default function CollaboratorsScreen() {
               <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
             ) : (
               <View style={styles.list}>
-                {/* Filtro de Proyecto Activo */}
-                {projectId && (
-                  <Animated.View 
-                    entering={FadeInDown}
-                    style={[styles.filterBanner, { backgroundColor: theme.colors.primaryLight }]}
-                  >
-                    <View style={styles.filterInfo}>
-                      <Ionicons name="folder-open" size={20} color={theme.colors.primary} />
-                      <Text style={[styles.filterText, { color: theme.colors.primary }]}>
-                        Filtrado por proyecto
-                      </Text>
-                    </View>
-                    <TouchableOpacity 
-                      onPress={() => router.setParams({ projectId: undefined })}
-                      style={styles.clearFilterBtn}
-                    >
-                      <Ionicons name="close-circle" size={20} color={theme.colors.primary} />
-                    </TouchableOpacity>
-                  </Animated.View>
-                )}
-
-                {filteredCollaborators.map((collab, index) => (
+                {/* Chats Section */}
+                {activeTab === 'chats' && filteredCollaborators.map((collab, index) => (
                   <Animated.View 
                     key={collab.id} 
                     entering={FadeInDown.delay(index * 100)}
@@ -272,7 +286,7 @@ export default function CollaboratorsScreen() {
                         }
                         router.push({
                           pathname: '/chat/[id]',
-                          params: { id: collab.id, name: collab.name }
+                          params: { id: collab.id, name: collab.name, type: 'user' }
                         });
                       }}
                       onLongPress={() => {
@@ -289,22 +303,64 @@ export default function CollaboratorsScreen() {
                             {collab.name.charAt(0)}
                           </Text>
                         )}
+                        <View style={[styles.onlineStatus, { backgroundColor: theme.colors.success }]} />
                       </View>
                       <View style={styles.content}>
                         <View style={styles.nameRow}>
                           <Text style={[styles.name, { color: theme.colors.text }]}>{collab.name}</Text>
-                          {collab.status === 'pending' && (
-                            <View style={[styles.pendingBadge, { backgroundColor: theme.colors.primaryLight }]}>
-                              <Text style={[styles.pendingText, { color: theme.colors.primary }]}>
-                                {collab.isRequester ? 'Pendiente' : 'Por Aceptar'}
-                              </Text>
+                          <Text style={[styles.timeText, { color: theme.colors.textSecondary }]}>12:45 PM</Text>
+                        </View>
+                        <View style={styles.msgPreviewRow}>
+                          <Text style={[styles.role, { color: theme.colors.textSecondary, flex: 1 }]} numberOfLines={1}>
+                            {collab.status === 'pending' ? 'Solicitud pendiente...' : 'Hola! ¿Cómo vas con la tarea?'}
+                          </Text>
+                          {index === 0 && (
+                            <View style={[styles.unreadBadge, { backgroundColor: theme.colors.primary }]}>
+                              <Text style={styles.unreadText}>2</Text>
                             </View>
                           )}
                         </View>
-                        <Text style={[styles.role, { color: theme.colors.textSecondary }]}>{collab.role}</Text>
                       </View>
-                      <View style={styles.actionButton}>
-                        <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+                    </Pressable>
+                  </Animated.View>
+                ))}
+
+                {/* Groups Section */}
+                {activeTab === 'groups' && subjects.map((group, index) => (
+                  <Animated.View 
+                    key={group.id} 
+                    entering={FadeInDown.delay(index * 100)}
+                  >
+                    <Pressable 
+                      style={({ pressed }) => [
+                        styles.card, 
+                        { backgroundColor: theme.colors.card, opacity: pressed ? 0.7 : 1 }
+                      ]}
+                      onPress={() => {
+                        router.push({
+                          pathname: '/chat/[id]',
+                          params: { id: group.id, name: group.name, type: 'project' }
+                        });
+                      }}
+                    >
+                      <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+                        <Ionicons name="people" size={24} color="#FFF" />
+                      </View>
+                      <View style={styles.content}>
+                        <View style={styles.nameRow}>
+                          <Text style={[styles.name, { color: theme.colors.text }]}>{group.name}</Text>
+                          <Text style={[styles.timeText, { color: theme.colors.textSecondary }]}>{group.time}</Text>
+                        </View>
+                        <View style={styles.msgPreviewRow}>
+                          <Text style={[styles.role, { color: theme.colors.textSecondary, flex: 1 }]} numberOfLines={1}>
+                            {group.lastMsg}
+                          </Text>
+                          {group.unread > 0 && (
+                            <View style={[styles.unreadBadge, { backgroundColor: theme.colors.primary }]}>
+                              <Text style={styles.unreadText}>{group.unread}</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                     </Pressable>
                   </Animated.View>
@@ -316,7 +372,7 @@ export default function CollaboratorsScreen() {
 
         {/* FAB SPEED DIAL */}
         <View style={styles.fabContainer}>
-          {/* Botón Nuevo Colaborador */}
+          {/* Botón Nuevo Contacto */}
           <Animated.View style={[styles.subFab, manualStyle, { backgroundColor: theme.colors.card }]}>
             <TouchableOpacity 
               onPress={() => {
@@ -327,7 +383,7 @@ export default function CollaboratorsScreen() {
             >
               <Ionicons name="person-add-outline" size={22} color={theme.colors.primary} />
               <View style={[styles.fabLabel, { backgroundColor: theme.colors.card }]}>
-                <Text style={[styles.fabLabelText, { color: theme.colors.text }]}>Nuevo Colaborador</Text>
+                <Text style={[styles.fabLabelText, { color: theme.colors.text }]}>Nuevo Contacto</Text>
               </View>
             </TouchableOpacity>
           </Animated.View>
@@ -454,7 +510,7 @@ export default function CollaboratorsScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.colors.card }]}>
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Agregar Colaborador</Text>
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Agregar Contacto</Text>
             
             {!foundCollab ? (
               <>
@@ -554,56 +610,110 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: { 
-    fontSize: 32, 
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    fontSize: 28, 
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    padding: 6,
+    borderRadius: 16,
+    marginBottom: 20,
+    gap: 6,
+  },
+  tab: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderRadius: 16,
+    paddingVertical: 2,
+    borderRadius: 18,
     marginBottom: 24,
     gap: 12,
+    borderWidth: 1,
+    borderColor: '#00000005',
   },
   searchInput: {
     flex: 1,
-    height: 44,
+    height: 48,
     fontSize: 15,
   },
   list: {
-    gap: 12,
+    gap: 8,
     paddingBottom: 100,
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    padding: 14,
     borderRadius: 24,
+    marginBottom: 4,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
+    width: 60,
+    height: 60,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
+    overflow: 'visible',
+  },
+  onlineStatus: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: '#FFF',
   },
   avatarImg: {
     width: '100%',
     height: '100%',
+    borderRadius: 22,
   },
   avatarText: { fontSize: 22, fontWeight: '800' },
   content: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: 16,
   },
-  name: { fontSize: 17, fontWeight: '700' },
+  name: { fontSize: 16, fontWeight: '800' },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  timeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  msgPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+  },
+  unreadBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  unreadText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
   pendingBadge: {
     paddingHorizontal: 8,

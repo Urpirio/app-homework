@@ -18,6 +18,8 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { router, useFocusEffect } from 'expo-router';
 import api from '@/utils/api';
 import { UserRole } from '@/types/auth';
+import { UserRegistrationModal } from '@/components/login/UserRegistrationModal';
+import { ClassroomModal } from '@/components/login/ClassroomModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -26,6 +28,9 @@ export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [regModalVisible, setRegModalVisible] = useState(false);
+  const [classroomModalVisible, setClassroomModalVisible] = useState(false);
+  const [regRole, setRegRole] = useState<'STUDENT' | 'TEACHER' | 'SUPPORT'>('STUDENT');
 
   const fetchAdminData = async () => {
     try {
@@ -96,61 +101,72 @@ export default function AdminDashboard() {
             {/* Stats Overview */}
             <View style={styles.statsGrid}>
               <StatItem 
+                index={0}
                 label="Estudiantes" 
                 value={stats?.students || 0} 
                 icon="people" 
                 color="#007AFF" 
               />
               <StatItem 
+                index={1}
                 label="Maestros" 
                 value={stats?.teachers || 0} 
                 icon="school" 
                 color="#5856D6" 
               />
               <StatItem 
+                index={2}
                 label="Aulas" 
                 value={stats?.classrooms || 0} 
                 icon="business" 
                 color="#FF9500" 
               />
+              <StatItem 
+                index={3}
+                label="Promedio" 
+                value={(stats?.avgGrade || 0).toFixed(1)} 
+                icon="trending-up" 
+                color={theme.colors.success} 
+              />
             </View>
 
-            {/* Actions */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Acciones Rápidas</Text>
-              
               <AdminAction 
-                title="Nueva Aula" 
-                subtitle="Crear un salón y asignar maestro"
-                icon="add-circle"
+                title="Directorio de Usuarios" 
+                subtitle="Ver alumnos, maestros y soporte"
+                icon="people"
                 color={theme.colors.primary}
-                onPress={() => {}}
-              />
-              
-              <AdminAction 
-                title="Registrar Estudiante" 
-                subtitle="Crear cuenta para un alumno"
-                icon="person-add"
-                color={theme.colors.success}
-                onPress={() => {}}
-              />
-              
-              <AdminAction 
-                title="Contratar Maestro" 
-                subtitle="Añadir personal docente"
-                icon="briefcase"
-                color="#5856D6"
-                onPress={() => {}}
-              />
-              
-              <AdminAction 
-                title="Personal de Soporte" 
-                subtitle="Asignar técnicos de apoyo"
-                icon="construct"
-                color="#FF9500"
-                onPress={() => {}}
+                onPress={() => router.push('/admin/users')}
               />
             </View>
+
+            {user?.role === UserRole.SUPER_ADMIN && (
+              <View style={[styles.section, { marginTop: 30 }]}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Super Admin Tools</Text>
+                
+                <AdminAction 
+                  title="Listado de Instituciones" 
+                  subtitle="Gestionar todas las escuelas"
+                  icon="business"
+                  color="#FF2D55"
+                  onPress={() => router.push('/admin/institutions')}
+                />
+              </View>
+            )}
+
+            <UserRegistrationModal
+              visible={regModalVisible}
+              onClose={() => setRegModalVisible(false)}
+              role={regRole}
+              onSuccess={fetchAdminData}
+            />
+
+            <ClassroomModal
+              visible={classroomModalVisible}
+              onClose={() => setClassroomModalVisible(false)}
+              institutionId={user?.institutionId}
+              onSuccess={fetchAdminData}
+            />
           </View>
         </ScrollView>
       </ThemedView>
@@ -158,16 +174,28 @@ export default function AdminDashboard() {
   );
 }
 
-const StatItem = ({ label, value, icon, color }: any) => {
+const StatItem = ({ label, value, icon, color, index }: any) => {
   const { theme } = useTheme();
   return (
-    <View style={[styles.statItem, { backgroundColor: theme.colors.card }]}>
+    <Animated.View 
+      entering={FadeInDown.delay(index * 100).springify()}
+      style={[
+        styles.statItem, 
+        { 
+          backgroundColor: theme.colors.card,
+          borderWidth: 1,
+          borderColor: theme.colors.border + '50',
+        }
+      ]}
+    >
       <View style={[styles.statIcon, { backgroundColor: color + '15' }]}>
-        <Ionicons name={icon} size={20} color={color} />
+        <Ionicons name={icon} size={22} color={color} />
       </View>
-      <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
-      <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
-    </View>
+      <View style={styles.statContent}>
+        <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
+        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
+      </View>
+    </Animated.View>
   );
 };
 
@@ -200,11 +228,19 @@ const styles = StyleSheet.create({
   header: { paddingVertical: 20, marginBottom: 10 },
   title: { fontSize: 32, fontWeight: '800' },
   subtitle: { fontSize: 16, marginTop: 4 },
-  statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  statItem: { flex: 1, padding: 16, borderRadius: 24, alignItems: 'center' },
-  statIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  statValue: { fontSize: 20, fontWeight: '800' },
-  statLabel: { fontSize: 11, fontWeight: '600' },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
+  statItem: { 
+    width: (SCREEN_WIDTH - 44) / 2, 
+    padding: 16, 
+    borderRadius: 28, 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    gap: 12
+  },
+  statIcon: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  statContent: { flex: 1 },
+  statValue: { fontSize: 18, fontWeight: '800' },
+  statLabel: { fontSize: 11, fontWeight: '600', marginTop: 1 },
   section: { marginTop: 10 },
   sectionTitle: { fontSize: 20, fontWeight: '800', marginBottom: 16 },
   actionCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 24, marginBottom: 12 },

@@ -1,61 +1,47 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
-import { ProjectCard } from '@/components/home/ProjectCard';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
-import { Project } from '@/types/project';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useEffect, useState, useCallback } from 'react';
-import api from '@/utils/api';
-import { ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useCallback } from 'react';
 import { 
-  FlatList, 
   StyleSheet, 
   Text, 
   View, 
   Dimensions, 
-  TextInput,
-  Pressable 
+  FlatList,
+  Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ProjectModal } from '@/components/login/ProjectModal';
-import { ProjectActionsModal } from '@/components/login/ProjectActionsModal';
-import { ConfirmModal } from '@/components/shared/ConfirmModal';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import api from '@/utils/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export default function ProjectListScreen() {
-  const { theme } = useTheme();
-  const [search, setSearch] = useState('');
-  
-  // Modals state
-  const [projectModalVisible, setProjectModalVisible] = useState(false);
-  const [actionsVisible, setActionsVisible] = useState(false);
-  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
-  
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+const MOCK_SUBJECTS = [
+  { id: 'm1', name: 'Matemáticas IV', teacher: 'Prof. Alberto Rivera', grade: 9.5, color: '#5856D6', icon: 'calculator' },
+  { id: 'm2', name: 'Historia Universal', teacher: 'Prof. Elena Martínez', grade: 8.2, color: '#FF9500', icon: 'book' },
+  { id: 'm3', name: 'Física I', teacher: 'Prof. Roberto Sanz', grade: 7.8, color: '#FF2D55', icon: 'flask' },
+  { id: 'm4', name: 'Literatura', teacher: 'Prof. Lucía Peña', grade: 10, color: '#34C759', icon: 'library' },
+  { id: 'm5', name: 'Inglés III', teacher: 'Prof. Kevin White', grade: 8.8, color: '#007AFF', icon: 'language' },
+];
 
-  // Projects list state
-  const [projects, setProjects] = useState<Project[]>([]);
+export default function SubjectsScreen() {
+  const { theme } = useTheme();
+  const [subjects, setSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchProjects = async () => {
+  const fetchSubjects = async () => {
     try {
       const response = await api.get('/projects');
-      const mapped = response.data.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description || '',
-        progress: 0,
-        tasksCount: p._count?.tasks || 0,
-        completedTasks: 0,
-        lastAccessed: new Date(p.updatedAt).toLocaleDateString(),
-        color: p.color || theme.colors.primary,
-      }));
-      setProjects(mapped);
+      if (response.data && response.data.length > 0) {
+        setSubjects(response.data);
+      } else {
+        setSubjects(MOCK_SUBJECTS);
+      }
     } catch (error) {
-      console.error('Error fetching projects:', error);
-      Alert.alert('Error', 'No se pudieron cargar los proyectos.');
+      setSubjects(MOCK_SUBJECTS);
     } finally {
       setLoading(false);
     }
@@ -63,57 +49,14 @@ export default function ProjectListScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchProjects();
+      fetchSubjects();
     }, [])
   );
 
-  const filteredProjects = projects.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const horizontalPadding = SCREEN_WIDTH > 400 ? theme.spacing.xl : theme.spacing.md;
-
-  const handleSaveProject = async (data: any) => {
-    try {
-      if (selectedProject) {
-        // Edit
-        const response = await api.patch(`/projects/${selectedProject.id}`, data);
-        setProjects(projects.map(p => p.id === selectedProject.id ? { ...p, ...response.data } : p));
-      } else {
-        // Add
-        const response = await api.post('/projects', data);
-        setProjects([response.data, ...projects]);
-      }
-      setProjectModalVisible(false);
-      setSelectedProject(null);
-    } catch (error) {
-      console.error('Error saving project:', error);
-      Alert.alert('Error', 'No se pudo guardar el proyecto.');
-    }
-  };
-
-  const handleLongPress = (project: Project) => {
-    setSelectedProject(project);
-    setActionsVisible(true);
-  };
-
-  const handleDeleteConfirmed = async () => {
-    if (selectedProject) {
-      try {
-        await api.delete(`/projects/${selectedProject.id}`);
-        setProjects(projects.filter(p => p.id !== selectedProject.id));
-        setSelectedProject(null);
-        setConfirmDeleteVisible(false);
-      } catch (error) {
-        console.error('Error deleting project:', error);
-        Alert.alert('Error', 'No se pudo eliminar el proyecto.');
-      }
-    }
-  };
-
-  const handleOpenAdd = () => {
-    setSelectedProject(null);
-    setProjectModalVisible(true);
+  const getGradeColor = (grade: number) => {
+    if (grade >= 9) return '#34C759';
+    if (grade >= 7) return '#FF9500';
+    return '#FF3B30';
   };
 
   return (
@@ -121,81 +64,48 @@ export default function ProjectListScreen() {
       <ThemedView style={styles.container}>
         <BackgroundShapes />
         
-        <View style={{ flex: 1, paddingHorizontal: horizontalPadding }}>
-          <View style={styles.header}>
-            <Pressable onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-            </Pressable>
-            <Text style={[styles.title, { color: theme.colors.text }]}>
-              Mis Proyectos
-            </Text>
-            <Pressable 
-              onPress={handleOpenAdd}
-              style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-            >
-              <Ionicons name="add" size={24} color="#FFFFFF" />
-            </Pressable>
-          </View>
-
-          <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
-            <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
-            <TextInput
-              style={[styles.searchInput, { color: theme.colors.text }]}
-              placeholder="Buscar proyecto..."
-              placeholderTextColor={theme.colors.textSecondary}
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
-
-          {loading ? (
-            <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
-          ) : (
-            <FlatList
-              data={filteredProjects}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item, index }) => (
-                <ProjectCard 
-                  project={item} 
-                  index={index} 
-                  onLongPress={() => handleLongPress(item)}
-                />
-              )}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.listContent}
-              ListEmptyComponent={
-                <Text style={{ textAlign: 'center', marginTop: 40, color: theme.colors.textSecondary, fontStyle: 'italic' }}>
-                  No se encontraron proyectos.
-                </Text>
-              }
-            />
-          )}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Mis Materias</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>Ciclo Escolar 2026 - Activo</Text>
         </View>
 
-        {/* Modales */}
-        <ProjectModal 
-          visible={projectModalVisible}
-          onClose={() => setProjectModalVisible(false)}
-          onSave={handleSaveProject}
-          initialData={selectedProject}
-        />
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
+        ) : (
+          <FlatList
+            data={subjects}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item, index }) => (
+              <Animated.View entering={FadeInDown.delay(index * 100)}>
+                <Pressable 
+                  onPress={() => router.push(`/projects/${item.id}`)}
+                  style={({ pressed }) => [
+                    styles.subjectCard, 
+                    { backgroundColor: theme.colors.card, opacity: pressed ? 0.8 : 1 }
+                  ]}
+                >
+                  <View style={[styles.iconBox, { backgroundColor: (item.color || theme.colors.primary) + '15' }]}>
+                    <Ionicons name={(item.icon || 'journal') as any} size={24} color={item.color || theme.colors.primary} />
+                  </View>
+                  
+                  <View style={styles.subjectInfo}>
+                    <Text style={[styles.subjectName, { color: theme.colors.text }]}>{item.name}</Text>
+                    <Text style={[styles.teacherName, { color: theme.colors.textSecondary }]}>{item.teacher || 'Docente Titular'}</Text>
+                  </View>
 
-        <ProjectActionsModal 
-          visible={actionsVisible}
-          onClose={() => setActionsVisible(false)}
-          onEdit={() => setProjectModalVisible(true)}
-          onDelete={() => setConfirmDeleteVisible(true)}
-        />
-
-        <ConfirmModal 
-          visible={confirmDeleteVisible}
-          onClose={() => setConfirmDeleteVisible(false)}
-          onConfirm={handleDeleteConfirmed}
-          title="Eliminar Proyecto"
-          message={`¿Estás seguro de que deseas eliminar "${selectedProject?.name}"?`}
-          isDestructive={true}
-          confirmLabel="Eliminar"
-        />
+                  <View style={[styles.gradeBadge, { backgroundColor: getGradeColor(item.grade || 0) + '15' }]}>
+                    <Text style={[styles.gradeText, { color: getGradeColor(item.grade || 0) }]}>
+                      {(item.grade || 0).toFixed(1)}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.border} style={{ marginLeft: 10 }} />
+                </Pressable>
+              </Animated.View>
+            )}
+          />
+        )}
       </ThemedView>
     </SafeAreaView>
   );
@@ -204,44 +114,36 @@ export default function ProjectListScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
+  header: { paddingHorizontal: 25, paddingVertical: 20 },
+  headerTitle: { fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: 14, fontWeight: '600' },
+  listContent: { paddingHorizontal: 25, paddingBottom: 40 },
+  subjectCard: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: 16, 
+    borderRadius: 24, 
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'transparent'
+  },
+  iconBox: { 
+    width: 52, 
+    height: 52, 
+    borderRadius: 18, 
+    justifyContent: 'center', 
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 20,
+    marginRight: 16
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    flex: 1,
-    marginLeft: 8,
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    height: 50,
+  subjectInfo: { flex: 1 },
+  subjectName: { fontSize: 16, fontWeight: '800', marginBottom: 2 },
+  teacherName: { fontSize: 13, fontWeight: '600' },
+  gradeBadge: { 
+    paddingHorizontal: 10, 
+    paddingVertical: 6, 
     borderRadius: 12,
-    marginBottom: 20,
+    minWidth: 45,
+    alignItems: 'center'
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 16,
-  },
-  listContent: {
-    paddingBottom: 40,
-  },
+  gradeText: { fontSize: 14, fontWeight: '800' },
 });

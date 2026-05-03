@@ -8,12 +8,11 @@ import Animated, { FadeInLeft } from 'react-native-reanimated';
 interface TaskItemProps {
   task: Task;
   index: number;
-  onToggle?: () => void;
   onPress?: () => void;
   onLongPress?: () => void;
 }
 
-export const TaskItem = ({ task, index, onToggle, onPress, onLongPress }: TaskItemProps) => {
+export const TaskItem = ({ task, index, onPress, onLongPress }: TaskItemProps) => {
   const { theme } = useTheme();
 
   const isDone = task.status?.toLowerCase() === 'done';
@@ -29,7 +28,7 @@ export const TaskItem = ({ task, index, onToggle, onPress, onLongPress }: TaskIt
     if (!dateStr) return null;
     try {
       const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr; // Fallback to raw string if old data
+      if (isNaN(d.getTime())) return dateStr;
       return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
     } catch {
       return dateStr;
@@ -37,7 +36,7 @@ export const TaskItem = ({ task, index, onToggle, onPress, onLongPress }: TaskIt
   };
 
   const getStatusLabel = () => {
-    if (isDone) return 'Listo';
+    if (isDone) return 'Entregada';
     if (isInProgress) return 'En curso';
     return 'Pendiente';
   };
@@ -50,50 +49,36 @@ export const TaskItem = ({ task, index, onToggle, onPress, onLongPress }: TaskIt
         delayLongPress={500}
         style={[styles.container, { backgroundColor: theme.colors.card }]}
       >
-        <Pressable 
-          onPress={onToggle}
-          style={[
-            styles.checkbox, 
-            { 
-              borderColor: isDone ? theme.colors.success : theme.colors.border,
-              backgroundColor: isDone ? theme.colors.success : 'transparent'
-            }
-          ]}
-        >
-          {isDone && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-        </Pressable>
+        <View style={[styles.iconContainer, { backgroundColor: getStatusColor() + '10' }]}>
+          <Ionicons 
+            name={isDone ? "document-text" : "document-outline"} 
+            size={20} 
+            color={getStatusColor()} 
+          />
+        </View>
 
         <View style={styles.content}>
-          <Text 
-            style={[
-              styles.title, 
-              { 
-                color: theme.colors.text,
-                textDecorationLine: isDone ? 'line-through' : 'none',
-                opacity: isDone ? 0.6 : 1
-              }
-            ]}
-          >
+          <Text style={[styles.title, { color: theme.colors.text }]}>
             {task.title}
           </Text>
           
-          {task.description && !isDone && (
-            <Text style={[styles.description, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+          {task.description && (
+            <Text style={[styles.description, { color: theme.colors.textSecondary }]} numberOfLines={1}>
               {task.description}
             </Text>
           )}
 
           <View style={styles.footer}>
-            {task.dueDate && (
+            {task.createdAt && (
               <View style={styles.metaItem}>
                 <Ionicons name="calendar-outline" size={12} color={theme.colors.textSecondary} />
                 <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>
-                  {formatDate(task.dueDate)}
+                  {formatDate(task.createdAt)}
                 </Text>
               </View>
             )}
             
-            <View style={[styles.statusIndicator, { backgroundColor: getStatusColor() + '20' }]}>
+            <View style={[styles.statusIndicator, { backgroundColor: getStatusColor() + '15' }]}>
               <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
               <Text style={[styles.statusText, { color: getStatusColor() }]}>
                 {getStatusLabel()}
@@ -101,6 +86,7 @@ export const TaskItem = ({ task, index, onToggle, onPress, onLongPress }: TaskIt
             </View>
           </View>
         </View>
+        <Ionicons name="chevron-forward" size={16} color={theme.colors.border} style={{ alignSelf: 'center' }} />
       </Pressable>
     </Animated.View>
   );
@@ -110,30 +96,28 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 20,
     marginBottom: 12,
   },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 2,
   },
   content: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 14,
   },
   title: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   description: {
     fontSize: 13,
-    marginTop: 4,
-    lineHeight: 18,
+    marginTop: 2,
   },
   footer: {
     flexDirection: 'row',

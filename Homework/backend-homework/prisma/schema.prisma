@@ -16,42 +16,75 @@ enum Role {
 }
 
 model Institution {
-  id        String    @id @default(uuid())
-  name      String
-  logoUrl   String?
-  address   String?
-  users     User[]
-  projects  Project[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String      @id @default(uuid())
+  name       String
+  logoUrl    String?
+  address    String?
+  users      User[]
+  projects   Project[]
+  classrooms Classroom[]
+  schedules  Schedule[]
+  books      Book[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 }
 
 model User {
-  id               String         @id @default(uuid())
-  email            String         @unique
-  password         String
-  fullName         String
-  role             Role           @default(STUDENT)
-  avatarUrl        String?
-  identityCode     String?        @unique
-  isVerified       Boolean        @default(false)
-  verificationCode String?
+  id                      String         @id @default(uuid())
+  email                   String         @unique
+  password                String
+  fullName                String
+  role                    Role           @default(STUDENT)
+  avatarUrl               String?
+  identityCode            String?        @unique
+  isVerified              Boolean        @default(false)
+  verificationCode        String?
   verificationCodeExpires DateTime?
+
+  // Profile fields
+  specialty               String?
+  bio                     String?
+  parentName              String?
+  parentPhone             String?
+
+  institutionId           String?
+  institution             Institution?   @relation(fields: [institutionId], references: [id])
+
+  classroomId             String?
+  classroom               Classroom?     @relation("ClassroomStudents", fields: [classroomId], references: [id])
+
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  projects                Project[]
+  notifications           Notification[]
+  sentRequests            Collaborator[] @relation("SentRequests")
+  receivedRequests        Collaborator[] @relation("ReceivedRequests")
+  sentMessages            Message[]      @relation("SentMessages")
+  receivedMessages        Message[]      @relation("ReceivedMessages")
+  projectMemberships      ProjectMember[]
+  submissions             Submission[]
+  bookLoans               BookLoan[]
+
+  // Support Tickets
+  assignedTickets         Ticket[]       @relation("AssignedTickets")
+  createdTickets          Ticket[]       @relation("CreatedTickets")
+  reviews                 Review[]
+}
+
+model Classroom {
+  id            String      @id @default(uuid())
+  name          String
+  description   String?
   
-  institutionId    String?
-  institution      Institution?   @relation(fields: [institutionId], references: [id])
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  students      User[]      @relation("ClassroomStudents")
+  projects      Project[]   // Projects acting as Subjects
   
-  projects         Project[]
-  notifications    Notification[]
-  sentRequests     Collaborator[] @relation("SentRequests")
-  receivedRequests Collaborator[] @relation("ReceivedRequests")
-  sentMessages     Message[]      @relation("SentMessages")
-  receivedMessages Message[]      @relation("ReceivedMessages")
-  projectMemberships ProjectMember[]
-  submissions      Submission[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }
 
 model Project {
@@ -59,15 +92,22 @@ model Project {
   name          String
   description   String?
   color         String?
-  
+  icon          String?  // Added for subjects
+
   institutionId String?
   institution   Institution? @relation(fields: [institutionId], references: [id])
-  
+
+  classroomId   String?
+  classroom     Classroom?   @relation(fields: [classroomId], references: [id])
+
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   tasks         Task[]
+  units         Unit[]
   members       ProjectMember[]
+  messages      Message[]
+  schedules     Schedule[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -79,14 +119,83 @@ model Task {
   status      TaskStatus   @default(TODO)
   type        TaskType     @default(ASSIGNMENT)
   maxGrade    Float?       @default(100)
-  
+
   projectId   String
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
+
+  unitId      String?
+  unit        Unit?        @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
   submissions Submission[]
   dueDate     DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+}
+
+model Unit {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  order       Int      @default(0)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Schedule {
+  id            String      @id @default(uuid())
+  day           String // Lun, Mar, etc.
+  startTime     String // 07:00
+  endTime       String // 08:30
+  room          String?
+  projectId     String
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Book {
+  id            String       @id @default(uuid())
+  title         String
+  author        String
+  synopsis      String?      @db.Text
+  location      String? // Estante A-12
+  coverUrl      String?
+  available     Boolean      @default(true)
+  categoryId    String
+  category      BookCategory @relation(fields: [categoryId], references: [id])
+  institutionId String
+  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  loans         BookLoan[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model BookCategory {
+  id    String @id @default(uuid())
+  name  String @unique
+  books Book[]
+}
+
+model BookLoan {
+  id         String     @id @default(uuid())
+  bookId     String
+  book       Book       @relation(fields: [bookId], references: [id])
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  loanDate   DateTime   @default(now())
+  returnDate DateTime?
+  status     LoanStatus @default(ACTIVE)
+}
+
+enum LoanStatus {
+  ACTIVE
+  RETURNED
+  OVERDUE
 }
 
 enum TaskType {
@@ -108,13 +217,13 @@ model Submission {
   task      Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
   studentId String
   student   User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
+
   fileUrl   String?
   content   String?          @db.Text
   grade     Float?
   feedback  String?
   status    SubmissionStatus @default(SUBMITTED)
-  
+
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
@@ -183,8 +292,12 @@ model Message {
   text       String
   senderId   String
   sender     User        @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiverId String
-  receiver   User        @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  receiverId String?
+  receiver   User?       @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  projectId  String?
+  project    Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   attachment Attachment?
   createdAt  DateTime    @default(now())
 }
@@ -197,5 +310,45 @@ model Attachment {
   fileUrl   String
   mimeType  String
   fileSize  Int?
+  createdAt DateTime @default(now())
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model Ticket {
+  id           String       @id @default(uuid())
+  title        String
+  description  String
+  category     String
+  status       TicketStatus @default(OPEN)
+
+  assignedToId String?
+  assignedTo   User?        @relation("AssignedTickets", fields: [assignedToId], references: [id])
+
+  createdById  String
+  createdBy    User         @relation("CreatedTickets", fields: [createdById], references: [id])
+
+  review       Review?
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Review {
+  id      String @id @default(uuid())
+  rating  Int // 1-5
+  comment String?
+
+  ticketId String @unique
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
   createdAt DateTime @default(now())
 }

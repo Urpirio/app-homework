@@ -68,23 +68,44 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
     @MessageBody() data: { receiverId: string; text: string; attachment?: any },
   ) {
     const senderId = client.data.userId;
-
-    if (!senderId) {
-      return { error: 'No autenticado' };
-    }
+    if (!senderId) return { error: 'No autenticado' };
 
     try {
-      const message = await this.messagesService.sendMessage(
-        senderId,
-        data.receiverId,
-        data.text,
-        data.attachment,
-      );
+      const message = await this.messagesService.sendMessage(senderId, data.text, {
+        receiverId: data.receiverId,
+        attachment: data.attachment,
+      });
 
-      // Enviar el mensaje al receptor en tiempo real
       this.server.to(`user:${data.receiverId}`).emit('newMessage', message);
+      return { success: true, message };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
 
-      // Confirmar al emisor
+  @SubscribeMessage('joinProject')
+  handleJoinProject(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { projectId: string },
+  ) {
+    client.join(`project:${data.projectId}`);
+  }
+
+  @SubscribeMessage('sendProjectMessage')
+  async handleSendProjectMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { projectId: string; text: string; attachment?: any },
+  ) {
+    const senderId = client.data.userId;
+    if (!senderId) return { error: 'No autenticado' };
+
+    try {
+      const message = await this.messagesService.sendMessage(senderId, data.text, {
+        projectId: data.projectId,
+        attachment: data.attachment,
+      });
+
+      this.server.to(`project:${data.projectId}`).emit('newProjectMessage', message);
       return { success: true, message };
     } catch (error) {
       return { error: error.message };
@@ -94,18 +115,26 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('typing')
   handleTyping(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { receiverId: string },
+    @MessageBody() data: { receiverId?: string; projectId?: string },
   ) {
     const senderId = client.data.userId;
-    this.server.to(`user:${data.receiverId}`).emit('userTyping', { userId: senderId });
+    if (data.receiverId) {
+      this.server.to(`user:${data.receiverId}`).emit('userTyping', { userId: senderId });
+    } else if (data.projectId) {
+      this.server.to(`project:${data.projectId}`).emit('userTyping', { userId: senderId, projectId: data.projectId });
+    }
   }
 
   @SubscribeMessage('stopTyping')
   handleStopTyping(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { receiverId: string },
+    @MessageBody() data: { receiverId?: string; projectId?: string },
   ) {
     const senderId = client.data.userId;
-    this.server.to(`user:${data.receiverId}`).emit('userStopTyping', { userId: senderId });
+    if (data.receiverId) {
+      this.server.to(`user:${data.receiverId}`).emit('userStopTyping', { userId: senderId });
+    } else if (data.projectId) {
+      this.server.to(`project:${data.projectId}`).emit('userStopTyping', { userId: senderId, projectId: data.projectId });
+    }
   }
 }

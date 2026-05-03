@@ -239,7 +239,7 @@ export default function ProfileScreen() {
               
               <Text style={[styles.qrName, { color: theme.colors.text }]}>{user?.fullName}</Text>
               <Text style={[styles.qrSubtitle, { color: theme.colors.textSecondary }]}>
-                Comparte este código para que te agreguen como colaborador
+                Comparte este código para que te agreguen como contacto
               </Text>
               
               <View style={[styles.qrIdBadge, { backgroundColor: theme.colors.primary + '15' }]}>
