@@ -44,7 +44,7 @@ export class SubjectsService {
       );
     }
 
-    return project;
+    return this.findOne(project.id);
   }
 
   async findOne(id: string) {
@@ -78,7 +78,33 @@ export class SubjectsService {
       throw new NotFoundException('Materia no encontrada');
     }
 
-    return project;
+    const recentSubmissions = await this.prisma.submission.findMany({
+      where: { task: { projectId: id } },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        student: { select: { fullName: true } },
+        task: { select: { title: true } }
+      }
+    });
+
+    return {
+      ...project,
+      teachers: project.members
+        .filter(m => m.role === 'teacher')
+        .map(m => ({
+          ...m.user,
+          projectId: m.projectId
+        })),
+      recentSubmissions: recentSubmissions.map(s => ({
+        id: s.id,
+        studentName: s.student.fullName,
+        taskName: s.task.title,
+        status: s.status,
+        grade: s.grade,
+        createdAt: s.createdAt
+      }))
+    };
   }
 
   async update(
@@ -152,28 +178,7 @@ export class SubjectsService {
       }
 
       // Re-fetch to include updated members
-      return this.prisma.project.findUnique({
-        where: { id },
-        include: {
-          members: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  fullName: true,
-                  role: true,
-                },
-              },
-            },
-          },
-          _count: {
-            select: { tasks: true, members: true },
-          },
-        },
-      });
-    }
-
-    return updatedProject;
+    return this.findOne(id);
   }
 
   async remove(id: string) {
