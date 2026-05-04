@@ -43,9 +43,6 @@ export default function SupportDashboardScreen() {
   const { data: profile } = useProfile();
   const [activeTab, setActiveTab] = useState<TabType>('queue');
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>('ALL');
-  const [filterCategory, setFilterCategory] = useState('ALL');
-  const [showFilters, setShowFilters] = useState(false);
   const selfAssign = useSelfAssignTicket();
   const updateTicket = useUpdateTicket();
   const { data: stats } = useTechnicianStats(profile?.id ?? '');
@@ -90,14 +87,12 @@ export default function SupportDashboardScreen() {
       : activeTab === 'unassigned'
         ? allTickets.filter((t: any) => !t.assignedToId && t.status === 'OPEN')
         : allTickets.filter((t: any) => t.status === 'RESOLVED' || t.status === 'CLOSED');
-    if (filterStatus !== 'ALL') base = base.filter((t: any) => t.status === filterStatus);
-    if (filterCategory !== 'ALL') base = base.filter((t: any) => t.category === filterCategory);
     if (search.trim()) {
       const q = search.toLowerCase();
       base = base.filter((t: any) => t.title?.toLowerCase().includes(q) || t.id?.toLowerCase().includes(q));
     }
     return base;
-  }, [allTickets, activeTab, filterStatus, filterCategory, search]);
+  }, [allTickets, activeTab, search]);
 
   const handleSelfAssign = async (ticketId: string) => {
     try {
@@ -160,10 +155,6 @@ export default function SupportDashboardScreen() {
                 <Text style={styles.actionBtnText}>Resolver</Text>
               </Pressable>
             )}
-            <Pressable onPress={() => router.push(`/support/review/${ticket.id}` as any)} style={[styles.actionBtn, { backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.border }]}>
-              <Ionicons name="eye-outline" size={13} color={theme.colors.text} />
-              <Text style={[styles.actionBtnText, { color: theme.colors.text }]}>Ver</Text>
-            </Pressable>
           </View>
         </Pressable>
       </Animated.View>
@@ -215,14 +206,12 @@ export default function SupportDashboardScreen() {
 
         {/* KPIs */}
         <View style={styles.kpiRow}>
-          <KPITile icon="checkmark-done" label="Hoy" value={String(kpis.resolvedToday)} color="#34C759" theme={theme} />
-          <KPITile icon="timer-outline" label="Resp." value={kpis.avgMin > 60 ? `${Math.round(kpis.avgMin / 60)}h` : `${kpis.avgMin}m`} color="#FF9500" theme={theme} />
-          <KPITile icon="layers-outline" label="Cola" value={String(kpis.queueLength)} color="#007AFF" theme={theme} />
+          <KPITile icon="layers-outline" label="En cola" value={String(kpis.queueLength)} color="#007AFF" theme={theme} />
           <KPITile icon="alert-circle-outline" label="Sin asignar" value={String(kpis.unassigned)} color="#FF3B30" theme={theme} />
-          <KPITile icon="star" label="Rating" value={kpis.satisfaction > 0 ? kpis.satisfaction.toFixed(1) : '—'} color="#FFCC00" theme={theme} />
+          <KPITile icon="checkmark-done" label="Resueltos hoy" value={String(kpis.resolvedToday)} color="#34C759" theme={theme} />
         </View>
 
-        {/* Search + Filter */}
+        {/* Search */}
         <View style={styles.searchRow}>
           <View style={[styles.searchBox, { backgroundColor: theme.colors.card }]}>
             <Ionicons name="search-outline" size={16} color={theme.colors.textSecondary} />
@@ -239,32 +228,7 @@ export default function SupportDashboardScreen() {
               </Pressable>
             )}
           </View>
-          <Pressable
-            onPress={() => setShowFilters(v => !v)}
-            style={[styles.filterBtn, { backgroundColor: showFilters ? theme.colors.primary : theme.colors.card }]}
-          >
-            <Ionicons name="options-outline" size={18} color={showFilters ? '#FFF' : theme.colors.text} />
-          </Pressable>
         </View>
-
-        {showFilters && (
-          <Animated.View entering={FadeInDown.duration(200)} style={styles.filterRow}>
-            {(['ALL', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const).map(s => (
-              <Pressable key={s} onPress={() => setFilterStatus(s)} style={[styles.chip, { backgroundColor: filterStatus === s ? theme.colors.primary : theme.colors.card }]}>
-                <Text style={[styles.chipText, { color: filterStatus === s ? '#FFF' : theme.colors.textSecondary }]}>
-                  {s === 'ALL' ? 'Todos' : STATUS_LABELS[s as TicketStatus]}
-                </Text>
-              </Pressable>
-            ))}
-            {(['ALL', 'Technical', 'Academic', 'Account', 'General'] as const).map(c => (
-              <Pressable key={c} onPress={() => setFilterCategory(c)} style={[styles.chip, { backgroundColor: filterCategory === c ? theme.colors.primary + 'CC' : theme.colors.card }]}>
-                <Text style={[styles.chipText, { color: filterCategory === c ? '#FFF' : theme.colors.textSecondary }]}>
-                  {c === 'ALL' ? 'Todas' : CATEGORY_LABELS[c]}
-                </Text>
-              </Pressable>
-            ))}
-          </Animated.View>
-        )}
 
         {/* Tabs */}
         <View style={styles.tabRow}>
@@ -338,10 +302,6 @@ const styles = StyleSheet.create({
   searchRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 8 },
   searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, gap: 8 },
   searchInput: { flex: 1, fontSize: 14 },
-  filterBtn: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 20, marginBottom: 8 },
-  chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  chipText: { fontSize: 12, fontWeight: '700' },
   tabRow: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 10, gap: 4 },
   tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 5 },
   tabText: { fontSize: 12, fontWeight: '700' },
