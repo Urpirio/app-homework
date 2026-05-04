@@ -215,6 +215,7 @@ export class UsersService {
         id: p.id,
         name: p.name,
         classroom: p.classroom?.name || 'N/A',
+        classId: p.classroomId,
         students: p._count.members
       }))
     };
