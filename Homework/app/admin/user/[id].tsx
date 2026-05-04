@@ -1,5 +1,8 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
+import { ErrorState } from '@/components/shared/ErrorState';
+import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
+import { useUserDetail } from '@/hooks/api/useUsers';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';

@@ -413,7 +413,7 @@ The expanded design includes authentication/authorization flows, file management
 - [x] 10. Checkpoint — Library and Calendar verified
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Admin and institution management screens (Workstream 4 — Part 2)
+- [x] 11. Admin and institution management screens (Workstream 4 — Part 2)
   - [x] 11.1 Integrate admin dashboard (`admin/dashboard`)
     - Implement `AdminDashboard` component structure per design: DashboardHeader, StatsGrid (2x3), QuickNavTiles, ActivityFeed, AlertsBanner, AnalyticsPreview
     - Display institution-wide statistics: user counts by role, active projects, task completion rates
@@ -482,7 +482,7 @@ The expanded design includes authentication/authorization flows, file management
     - Implement CSV import flow: `expo-document-picker` → `papaparse` client-side parsing → validation preview table → sequential `POST /auth/register` (batched, 10 concurrent) → progress bar → summary
     - _Requirements: 6.1, 6.2, 6.6, 6.7, 6.8_ | _Design: Frontend Screen Designs — User Management_
 
-  - [~] 11.9 Write property tests for admin screens (Properties 17, 18, 38, 39, 40)
+  - [x] 11.9 Write property tests for admin screens (Properties 17, 18, 38, 39, 40)
     - **Property 17: CSV import parsing extracts valid user records** — `__tests__/properties/csvParsing.property.test.ts`
     - **Validates: Requirements 6.6, 12.3**
     - **Property 18: List filtering returns only matching items** — `__tests__/properties/listFiltering.property.test.ts`
@@ -494,7 +494,7 @@ The expanded design includes authentication/authorization flows, file management
     - **Property 40: Activity feed is sorted by timestamp descending** — `__tests__/properties/activityFeedOrder.property.test.ts`
     - **Validates: Requirements 14.5**
 
-  - [~] 11.10 Write unit tests for admin management screens
+  - [x] 11.10 Write unit tests for admin management screens
     - Test institution CRUD flow with role guards
     - Test classroom creation with student enrollment
     - Test user filtering and role-based routing
@@ -503,8 +503,8 @@ The expanded design includes authentication/authorization flows, file management
     - _Requirements: 11.1–11.8, 12.1–12.8, 13.1–13.8, 6.1–6.10_
 
 
-- [ ] 12. Teacher dashboard and analytics (Workstream 4 — Part 3)
-  - [~] 12.1 Implement teacher dashboard screen
+- [x] 12. Teacher dashboard and analytics (Workstream 4 — Part 3)
+  - [x] 12.1 Implement teacher dashboard screen
     - Create `/teacher/dashboard` with component structure per design: DashboardHeader, StatsRow (4 tiles), QuickActions (4 tiles), SubjectsList (horizontal scroll), PendingSubmissions (max 5), UpcomingDeadlines (max 5)
     - Wire StatsRow to: Total Students (from `/teachers/{id}/students` total), Active Subjects (from `/teachers/{id}/subjects` total), Pending Grading (aggregated pending count), Avg Performance (weighted avgGrade)
     - Wire SubjectsList to `GET /teachers/{id}/subjects` → SubjectCard (name, classroom, studentCount, taskCount, avgGrade)
@@ -512,7 +512,7 @@ The expanded design includes authentication/authorization flows, file management
     - Wire UpcomingDeadlines to `GET /tasks/calendar` for teacher's subjects
     - _Requirements: 3.2, 3.3, 3.4_ | _Design: Frontend Screen Designs — Teacher Dashboard_
 
-  - [~] 12.2 Implement teacher analytics with charts
+  - [x] 12.2 Implement teacher analytics with charts
     - Create `PerformanceAnalytics` component accessible from dashboard "View Analytics" action tile
     - Create `TeacherAnalyticsPanel` with `SubjectSelector` dropdown (filter by subject or "All")
     - Implement `GradeDistributionChart` (bar — histogram of grade ranges 0-20, 21-40, …, 81-100)
@@ -521,21 +521,21 @@ The expanded design includes authentication/authorization flows, file management
     - Add `StudentPerformanceTable` (sortable — name, avgGrade, submissionRate, trend arrow)
     - _Requirements: 3.12, 3.13_ | _Design: Analytics & Visualization Design — Teacher Analytics Panel_
 
-  - [~] 12.3 Implement GradingStatsCard component
+  - [x] 12.3 Implement GradingStatsCard component
     - Create `GradingStatsCard` displaying: averageGrade, completionRate, pendingCount, totalSubmissions
     - Compute stats client-side from `GET /submissions/task/{taskId}` aggregated across tasks in a subject
     - Display as 4-cell grid with circular progress indicators for rates and numeric values for counts
     - Show on both teacher dashboard and individual subject detail screens
     - _Requirements: 3.8, 3.10_ | _Design: Frontend Screen Designs — Grading Statistics Display_
 
-  - [~] 12.4 Integrate teacher subject and student listing
+  - [x] 12.4 Integrate teacher subject and student listing
     - Wire teacher subjects screen to `GET /teachers/{id}/subjects` with classroom context and stats
     - Wire teacher students screen to `GET /teachers/{id}/students` with filtering by classroom/subject
     - Display individual student cards with recent submissions, grades, and communication links
     - Ensure no duplicate student IDs across subjects (Property 7)
     - _Requirements: 3.5, 3.6, 3.7_
 
-  - [~] 12.5 Write property tests for teacher dashboard (Properties 7, 8, 9)
+  - [x] 12.5 Write property tests for teacher dashboard (Properties 7, 8, 9)
     - **Property 7: Teacher student roster contains no duplicates** — `__tests__/properties/teacherStudentDistinct.property.test.ts`
     - **Validates: Requirements 3.6**
     - **Property 8: Grading statistics are mathematically correct** — `__tests__/properties/gradingStats.property.test.ts`
@@ -543,7 +543,7 @@ The expanded design includes authentication/authorization flows, file management
     - **Property 9: Calendar event merge preserves all sources** (shared with task 9.5, verify teacher calendar integration)
     - **Validates: Requirements 3.13, 19.2**
 
-  - [~] 12.6 Write unit tests for teacher dashboard
+  - [x] 12.6 Write unit tests for teacher dashboard
     - Test dashboard data aggregation from multiple endpoints
     - Test student deduplication across subjects
     - Test grading statistics calculations
@@ -551,7 +551,7 @@ The expanded design includes authentication/authorization flows, file management
     - _Requirements: 3.1–3.14_
 
 - [ ] 13. Support system integration (Workstream 4 — Part 4)
-  - [~] 13.1 Integrate support ticket creation with Zod validation
+  - [x] 13.1 Integrate support ticket creation with Zod validation
     - Create `/support/create-ticket` screen with component structure per design: CategoryPicker, PriorityPicker, TitleInput, DescriptionInput, AttachmentSection, SubmitButton
     - Validate form via `ticketSchema` (Zod) before submission
     - Upload attachments via `useFileUpload` hook first, then create ticket with `fileUrl` references via `POST /tickets`
@@ -559,13 +559,13 @@ The expanded design includes authentication/authorization flows, file management
     - Implement draft auto-save for ticket description (task 3.12)
     - _Requirements: 15.1, 15.2, 15.3_ | _Design: Support System Design — Ticket Creation Form_
 
-  - [~] 13.2 Integrate support ticket list and detail
+  - [x] 13.2 Integrate support ticket list and detail
     - Wire ticket list to `GET /tickets` with search/filter by status, category, priority via `useInfiniteQuery`
     - Wire ticket detail to `GET /tickets/{id}` with full history and status timeline
     - Display user's ticket history with status indicators and tracking numbers
     - _Requirements: 15.4, 15.5_
 
-  - [~] 13.3 Implement support staff dashboard
+  - [x] 13.3 Implement support staff dashboard
     - Create `/support/dashboard` with component structure per design: DashboardHeader, KPIRow (4 tiles), TicketQueue, EscalatedTickets, PerformanceChart
     - Wire KPIRow to: Resolved Today, Avg Response Time, Queue Length, Satisfaction Rating (from reviews avg)
     - Wire TicketQueue to `GET /users/{id}/tickets` (task 1.4) sorted by priority then date
@@ -573,14 +573,14 @@ The expanded design includes authentication/authorization flows, file management
     - Implement PerformanceChart (bar chart: tickets resolved per day, last 7 days) via `react-native-chart-kit`
     - _Requirements: 15.9, 15.10, 15.11_ | _Design: Frontend Screen Designs — Support Dashboard_
 
-  - [~] 13.4 Implement ticket escalation workflow
+  - [x] 13.4 Implement ticket escalation workflow
     - Implement ticket status transitions: Open → In Progress → Resolved → Closed
     - Implement manual escalation button with escalation note
     - Implement auto-escalation rules: High priority not claimed within 2h, Critical within 1h, any unresolved after 48h
     - Escalation triggers notification to SCHOOL_ADMIN and all SUPPORT staff
     - _Requirements: 15.5, 15.6, 15.7_ | _Design: Support System Design — Ticket Escalation Workflow_
 
-  - [~] 13.5 Implement review integration with ticket closure
+  - [x] 13.5 Implement review integration with ticket closure
     - On ticket status → CLOSED: trigger notification to ticket creator with deep link to `/support/review/{ticketId}`
     - Create review form: 1-5 star rating, comment field, category-specific feedback toggles (Responsiveness, Technical Competence, Communication)
     - Submit via `POST /reviews` with `ticketId` and `userId`
@@ -589,7 +589,7 @@ The expanded design includes authentication/authorization flows, file management
     - Display review analytics: average ratings, distribution charts, chronological history
     - _Requirements: 15.12, 15.13, 15.14, 15.15_ | _Design: Support System Design — Review Integration with Ticket Closure_
 
-  - [~] 13.6 Integrate general user review system
+  - [x] 13.6 Integrate general user review system
     - Create `/admin/user/{userId}/create-review` with multi-dimensional rating form per design: RatingDimensions (Academic, Behavior, Participation, Technical Skills), OverallRating (computed avg), WrittenFeedback, ImprovementRecommendations, GoalSetting
     - Implement review templates loaded by target user role: student template vs teacher template (Property 37)
     - Create template selector dropdown that pre-fills dimension labels from `constants/reviewTemplates.ts`
@@ -597,7 +597,7 @@ The expanded design includes authentication/authorization flows, file management
     - Implement review confidentiality: PUBLIC (visible to reviewed user) vs CONFIDENTIAL (admin-only)
     - _Requirements: 16.1, 16.2, 16.3, 16.6, 16.7_ | _Design: Support System Design — Review Form Design_
 
-  - [ ]* 13.7 Write property tests for support system (Properties 34, 35, 36, 37)
+  - [x] 13.7 Write property tests for support system (Properties 34, 35, 36, 37)
     - **Property 34: Ticket tracking numbers are unique** — `__tests__/properties/ticketTrackingUnique.property.test.ts`
     - **Validates: Requirements 15.2**
     - **Property 35: Ticket escalation triggers on time threshold** — `__tests__/properties/ticketEscalation.property.test.ts`
@@ -607,18 +607,18 @@ The expanded design includes authentication/authorization flows, file management
     - **Property 37: Review template matches target user role** — `__tests__/properties/reviewTemplate.property.test.ts`
     - **Validates: Requirements 16.2, 16.6**
 
-  - [ ]* 13.8 Write unit tests for support and review system
+  - [x] 13.8 Write unit tests for support and review system
     - Test ticket creation and status transition flow
     - Test review submission with rating validation
     - Test role-based review visibility
     - Test escalation timer logic
     - _Requirements: 15.1–15.16, 16.1–16.7_
 
-- [~] 14. Checkpoint — Admin, teacher, and support screens verified
+- [x] 14. Checkpoint — Admin, teacher, and support screens verified
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 15. Role-based access and authentication hardening (Workstream 6)
-  - [~] 15.1 Wire role-based navigation guards end-to-end
+- [x] 15. Role-based access and authentication hardening (Workstream 6)
+  - [x] 15.1 Wire role-based navigation guards end-to-end
     - Integrate `useRouteGuard` hook (task 3.3) into all admin/teacher/support screen layouts
     - Verify unauthorized access redirects to user's default home screen with toast
     - Verify tab bar dynamically hides unauthorized tabs
@@ -626,21 +626,21 @@ The expanded design includes authentication/authorization flows, file management
     - Test with all 5 roles: SUPER_ADMIN, SCHOOL_ADMIN, TEACHER, STUDENT, SUPPORT
     - _Requirements: 7.3, 7.4, 7.6_
 
-  - [~] 15.2 Wire token lifecycle and session management end-to-end
+  - [x] 15.2 Wire token lifecycle and session management end-to-end
     - Verify token refresh interceptor (task 3.1) handles concurrent 401s correctly with `isRefreshing` flag and `failedQueue`
     - Verify SessionTimeoutProvider (task 3.2) shows warning at 25min and logs out at 30min
     - Verify automatic logout clears SecureStore, resets React Query cache, navigates to login
     - Validate institutional access for all API calls (InstitutionContext from task 3.4)
     - _Requirements: 7.2, 7.5, 7.7, 7.8_
 
-  - [~] 15.3 Wire comprehensive form validation end-to-end
+  - [x] 15.3 Wire comprehensive form validation end-to-end
     - Integrate Zod schemas (task 3.10) into all form screens: registration, task creation, institution setup, ticket creation
     - Verify real-time field validation on blur with field-specific error messages
     - Verify form state preservation during errors via draft auto-save (task 3.12)
     - Validate cross-field consistency: date ranges, grade ranges (0-100), file sizes (≤50MB)
     - _Requirements: 9.1, 9.2, 9.6, 9.7_
 
-  - [~] 15.4 Wire error handling and offline support end-to-end
+  - [x] 15.4 Wire error handling and offline support end-to-end
     - Verify `categorizeError()` (task 3.11) is used in all screen-level error states
     - Verify `withRetry()` (task 3.11) is configured in React Query global defaults
     - Verify offline queue (task 3.13) processes actions on reconnection
@@ -648,7 +648,7 @@ The expanded design includes authentication/authorization flows, file management
     - Verify offline indicator banner shows when disconnected with cached data display
     - _Requirements: 9.3, 9.4, 9.5, 10.3, 10.7_
 
-  - [ ]* 15.5 Write end-to-end integration tests for auth and error handling
+  - [x] 15.5 Write end-to-end integration tests for auth and error handling
     - Test role-based route protection (unauthorized redirect) for all 5 roles
     - Test token refresh flow with request retry queue
     - Test offline queue and sync behavior
@@ -656,7 +656,7 @@ The expanded design includes authentication/authorization flows, file management
     - Test 5-layer error handling cascade
     - _Requirements: 7.1–7.8, 9.1–9.7, 10.1–10.7_
 
-- [~] 16. Final checkpoint — Full integration verified
+- [x] 16. Final checkpoint — Full integration verified
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

@@ -1,24 +1,23 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import * as Linking from 'expo-linking';
-import React, { useState, useEffect } from 'react';
-import { 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  View, 
-  Dimensions, 
-  Pressable,
-  Alert,
-  ActivityIndicator,
-  TextInput
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 import api from '@/utils/api';
+import { Ionicons } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Dimensions,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
+} from 'react-native';
+import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -106,7 +105,7 @@ export default function SupportScreen() {
                   label="Nuevo Ticket" 
                   description="Reportar problema"
                   color={theme.colors.primary}
-                  onPress={() => setShowNewTicket(!showNewTicket)}
+                  onPress={() => router.push('/support/create-ticket')}
                 />
                 <ContactCard 
                   icon="mail-outline" 

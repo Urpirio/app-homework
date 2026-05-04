@@ -3,8 +3,8 @@ import { ErrorState } from '@/components/shared/ErrorState';
 import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useSubject, useUpdateSubject } from '@/hooks/api/useProjects';
+import { useInstitutionTeachers } from '@/hooks/api/useUsers';
 import { useTheme } from '@/hooks/useTheme';
-import api from '@/utils/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -34,8 +34,6 @@ export default function EditSubjectScreen() {
   const [name, setName] = useState('');
   const [search, setSearch] = useState('');
   const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
-  const [teachers, setTeachers] = useState<any[]>([]);
-  const [loadingTeachers, setLoadingTeachers] = useState(true);
 
   const {
     data: subject,
@@ -44,6 +42,11 @@ export default function EditSubjectScreen() {
     error: subjectErr,
     refetch: refetchSubject,
   } = useSubject(subjectId);
+
+  const {
+    data: teachers = [],
+    isLoading: loadingTeachers,
+  } = useInstitutionTeachers(institutionId);
 
   const updateSubject = useUpdateSubject();
 
@@ -59,38 +62,6 @@ export default function EditSubjectScreen() {
       setSelectedTeacherIds(teacherIds);
     }
   }, [subject]);
-
-  // Fetch available teachers for the institution
-  useEffect(() => {
-    let cancelled = false;
-    const fetchTeachers = async () => {
-      try {
-        setLoadingTeachers(true);
-        const res = await api.get(`/users`, {
-          params: { institutionId, role: 'TEACHER' },
-        });
-        if (!cancelled) {
-          setTeachers(Array.isArray(res.data) ? res.data : res.data?.data ?? []);
-        }
-      } catch {
-        // Fallback: try institution-specific endpoint
-        try {
-          const res = await api.get(`/institutions/${institutionId}/teachers`);
-          if (!cancelled) {
-            setTeachers(Array.isArray(res.data) ? res.data : []);
-          }
-        } catch {
-          if (!cancelled) setTeachers([]);
-        }
-      } finally {
-        if (!cancelled) setLoadingTeachers(false);
-      }
-    };
-    fetchTeachers();
-    return () => {
-      cancelled = true;
-    };
-  }, [institutionId]);
 
   const filteredTeachers = useMemo(
     () =>

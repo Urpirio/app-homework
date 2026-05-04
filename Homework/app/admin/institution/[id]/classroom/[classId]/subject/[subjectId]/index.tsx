@@ -187,6 +187,7 @@ export default function SubjectDetailScreen() {
 
   const classroomName = subject.classroom?.name ?? '';
   const teachers = subject.teachers ?? (subject.user ? [subject.user] : []);
+  const primaryTeacherName = teachers.length > 0 ? teachers[0].fullName : '';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -201,7 +202,7 @@ export default function SubjectDetailScreen() {
           <View style={styles.headerText}>
             <Text style={[styles.title, { color: theme.colors.text }]}>{subject.name}</Text>
             <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-              {classroomName ? `${classroomName} · ` : ''}Gestión de Materia
+              {[primaryTeacherName, classroomName].filter(Boolean).join(' · ') || 'Gestión de Materia'}
             </Text>
           </View>
           <Pressable

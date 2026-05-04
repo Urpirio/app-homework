@@ -97,3 +97,31 @@ export function useCreateTicket() {
     },
   });
 }
+
+interface UpdateTicketPayload {
+  status?: string;
+  assignedToId?: string;
+  escalationNote?: string;
+}
+
+export function useUpdateTicket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      payload,
+    }: {
+      ticketId: string;
+      payload: UpdateTicketPayload;
+    }): Promise<Ticket> => {
+      const { data } = await api.patch<Ticket>(`/tickets/${ticketId}`, payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ticketKeys.all });
+      queryClient.setQueryData(ticketKeys.detail(data.id), data);
+    },
+  });
+}
+

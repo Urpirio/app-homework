@@ -66,7 +66,7 @@ export function useUsers(params?: UserListParams) {
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       const nextPage = lastPage.page + 1;
-      return nextPage * lastPage.limit < lastPage.total ? nextPage : undefined;
+      return lastPage.page * lastPage.limit < lastPage.total ? nextPage : undefined;
     },
   });
 }
@@ -79,6 +79,19 @@ export function useUserDetail(userId: string) {
       return data;
     },
     enabled: !!userId,
+  });
+}
+/** Fetch teachers for an institution (simple query for dropdowns/selectors) */
+export function useInstitutionTeachers(institutionId: string) {
+  return useQuery({
+    queryKey: ['users', 'institution-teachers', institutionId],
+    queryFn: async (): Promise<User[]> => {
+      const { data } = await api.get('/users', {
+        params: { institutionId, role: 'TEACHER' },
+      });
+      return Array.isArray(data) ? data : data?.data ?? [];
+    },
+    enabled: !!institutionId,
   });
 }
 
@@ -95,7 +108,7 @@ export function useTeacherStudents(teacherId: string) {
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       const nextPage = lastPage.page + 1;
-      return nextPage * lastPage.limit < lastPage.total ? nextPage : undefined;
+      return lastPage.page * lastPage.limit < lastPage.total ? nextPage : undefined;
     },
     enabled: !!teacherId,
   });
@@ -114,7 +127,7 @@ export function useTeacherSubjects(teacherId: string) {
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       const nextPage = lastPage.page + 1;
-      return nextPage * lastPage.limit < lastPage.total ? nextPage : undefined;
+      return lastPage.page * lastPage.limit < lastPage.total ? nextPage : undefined;
     },
     enabled: !!teacherId,
   });

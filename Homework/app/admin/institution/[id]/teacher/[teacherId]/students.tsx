@@ -1,62 +1,61 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { ErrorState } from '@/components/shared/ErrorState';
+import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
+import { useTeacherStudents } from '@/hooks/api/useUsers';
 import { useTheme } from '@/hooks/useTheme';
+import { deduplicateStudents } from '@/utils/gradingStats';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { 
-  FlatList, 
-  StyleSheet, 
-  Text, 
-  View, 
-  Pressable, 
-  TextInput,
-  ActivityIndicator 
+import React, { useMemo, useState } from 'react';
+import {
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import api from '@/utils/api';
 
 export default function TeacherStudentsScreen() {
-  const { id, teacherId } = useLocalSearchParams<{ id: string, teacherId: string }>();
+  const { id, teacherId } = useLocalSearchParams<{ id: string; teacherId: string }>();
   const router = useRouter();
   const { theme } = useTheme();
-  
-  const [students, setStudents] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchTeacherStudents();
-  }, [teacherId]);
+  const {
+    data: studentsData,
+    isLoading,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+  } = useTeacherStudents(teacherId ?? '');
 
-  const fetchTeacherStudents = async () => {
-    try {
-      const res = await api.get(`/teachers/${teacherId}/students`);
-      setStudents(res.data);
-    } catch (error) {
-      // Mock data
-      setStudents([
-        { id: 's1', fullName: 'Juan Pérez', classroom: '6to A', email: 'juan@mail.com' },
-        { id: 's2', fullName: 'María García', classroom: '5to B', email: 'maria@mail.com' },
-        { id: 's3', fullName: 'Carlos López', classroom: '6to A', email: 'carlos@mail.com' },
-        { id: 's4', fullName: 'Ana Martínez', classroom: '4to C', email: 'ana@mail.com' },
-        { id: 's5', fullName: 'Luis Rodríguez', classroom: '6to B', email: 'luis@mail.com' },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const students = useMemo(() => {
+    if (!studentsData?.pages) return [];
+    const all = studentsData.pages.flatMap((page) => page.data);
+    // Property 7: Ensure no duplicate student IDs
+    return deduplicateStudents(all);
+  }, [studentsData]);
 
-  const filteredStudents = students.filter(s => 
-    s.fullName.toLowerCase().includes(search.toLowerCase()) ||
-    s.classroom.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredStudents = useMemo(() => {
+    if (!search) return students;
+    const q = search.toLowerCase();
+    return students.filter(
+      (s) =>
+        s.fullName.toLowerCase().includes(q) ||
+        s.classroomName.toLowerCase().includes(q)
+    );
+  }, [students, search]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
       <ThemedView style={styles.container}>
         <BackgroundShapes />
-        
+
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
@@ -75,24 +74,26 @@ export default function TeacherStudentsScreen() {
           />
         </View>
 
-        {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-          </View>
+        {isLoading ? (
+          <SkeletonLoader rows={5} variant="list-item" />
+        ) : error ? (
+          <ErrorState error={error} onRetry={() => refetch()} />
         ) : (
           <FlatList
             data={filteredStudents}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
+            onEndReached={() => hasNextPage && fetchNextPage()}
+            onEndReachedThreshold={0.5}
             renderItem={({ item }) => (
-              <Pressable 
+              <Pressable
                 onPress={() => router.push(`/admin/institution/${id}/student/${item.id}`)}
                 style={({ pressed }) => [
-                  styles.studentCard, 
-                  { backgroundColor: theme.colors.card, opacity: pressed ? 0.7 : 1 }
+                  styles.studentCard,
+                  { backgroundColor: theme.colors.card, opacity: pressed ? 0.7 : 1 },
                 ]}
               >
-                <View style={[styles.avatar, { backgroundColor: theme.colors.primaryLight }]}>
+                <View style={[styles.avatar, { backgroundColor: theme.colors.primary + '15' }]}>
                   <Text style={[styles.avatarText, { color: theme.colors.primary }]}>
                     {item.fullName.charAt(0)}
                   </Text>
@@ -100,16 +101,18 @@ export default function TeacherStudentsScreen() {
                 <View style={styles.studentInfo}>
                   <Text style={[styles.studentName, { color: theme.colors.text }]}>{item.fullName}</Text>
                   <Text style={[styles.studentClass, { color: theme.colors.textSecondary }]}>
-                    {item.classroom} • {item.email}
+                    {item.classroomName} • {item.email}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={theme.colors.border} />
               </Pressable>
             )}
             ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={{ color: theme.colors.textSecondary }}>No se encontraron alumnos</Text>
-              </View>
+              <EmptyState
+                icon="people-outline"
+                title="Sin alumnos"
+                message={search ? 'No se encontraron alumnos con ese criterio.' : 'Este maestro no tiene alumnos asignados.'}
+              />
             }
           />
         )}
