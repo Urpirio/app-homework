@@ -141,7 +141,10 @@ export default function AdminDashboard() {
                 value={stats?.students || 0} 
                 icon="people" 
                 color="#007AFF" 
-                onPress={() => contextInstitutionId && router.push(`/admin/institution/${contextInstitutionId}/students`)}
+                onPress={() => {
+                  const targetId = contextInstitutionId || user?.institutionId;
+                  if (targetId) router.push(`/admin/institution/${targetId}/students`);
+                }}
               />
               <StatItem 
                 index={1}
@@ -149,7 +152,10 @@ export default function AdminDashboard() {
                 value={stats?.teachers || 0} 
                 icon="school" 
                 color="#5856D6" 
-                onPress={() => contextInstitutionId && router.push(`/admin/institution/${contextInstitutionId}/teachers`)}
+                onPress={() => {
+                  const targetId = contextInstitutionId || user?.institutionId;
+                  if (targetId) router.push(`/admin/institution/${targetId}/teachers`);
+                }}
               />
               <StatItem 
                 index={2}
@@ -157,7 +163,10 @@ export default function AdminDashboard() {
                 value={stats?.classrooms || 0} 
                 icon="business" 
                 color="#FF9500" 
-                onPress={() => contextInstitutionId && router.push(`/admin/institution/${contextInstitutionId}/classrooms`)}
+                onPress={() => {
+                  const targetId = contextInstitutionId || user?.institutionId;
+                  if (targetId) router.push(`/admin/institution/${targetId}/classrooms`);
+                }}
               />
               <StatItem 
                 index={3}

@@ -93,10 +93,12 @@ export default function StudentProfileScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {/* Header Card */}
           <View style={[styles.profileCard, { backgroundColor: theme.colors.card }]}>
-            <Image source={{ uri: student?.avatar }} style={styles.avatar} />
+            <Image source={{ uri: student?.avatarUrl || student?.avatar }} style={styles.avatar} />
             <View style={styles.profileInfo}>
               <Text style={[styles.name, { color: theme.colors.text }]}>{student?.fullName}</Text>
-              <Text style={[styles.classroom, { color: theme.colors.primary }]}>{student?.classroom}</Text>
+              <Text style={[styles.classroom, { color: theme.colors.primary }]}>
+                {typeof student?.classroom === 'object' ? student?.classroom?.name : student?.classroom || 'Sin Aula'}
+              </Text>
               <Text style={[styles.email, { color: theme.colors.textSecondary }]}>{student?.email}</Text>
             </View>
           </View>
@@ -146,7 +148,9 @@ export default function StudentProfileScreen() {
                   <Text style={[styles.teacherName, { color: theme.colors.textSecondary }]}>{item.teacher}</Text>
                 </View>
                 <View style={[styles.gradeBadge, { backgroundColor: theme.colors.primary + '15' }]}>
-                  <Text style={[styles.gradeText, { color: theme.colors.primary }]}>{item.grade}</Text>
+                  <Text style={[styles.gradeText, { color: theme.colors.primary }]}>
+                    {item.grade !== null ? item.grade : item.letter}
+                  </Text>
                 </View>
               </View>
             ))}

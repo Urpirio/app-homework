@@ -68,6 +68,7 @@ model User {
   projectMemberships      ProjectMember[]
   submissions             Submission[]
   bookLoans               BookLoan[]
+  attendanceRecords       Attendance[]
 
   // Support Tickets
   assignedTickets         Ticket[]       @relation("AssignedTickets")
@@ -111,6 +112,7 @@ model Project {
   members       ProjectMember[]
   messages      Message[]
   schedules     Schedule[]
+  attendanceRecords Attendance[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -364,4 +366,26 @@ model Review {
   user   User   @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+model Attendance {
+  id        String           @id @default(uuid())
+  studentId String
+  student   User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  projectId String           // Subject
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date      DateTime         @default(now())
+  status    AttendanceStatus @default(PRESENT)
+  note      String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([studentId, projectId, date])
 }

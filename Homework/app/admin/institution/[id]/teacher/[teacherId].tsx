@@ -95,7 +95,7 @@ export default function TeacherProfileScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {/* Profile Card */}
           <View style={[styles.profileCard, { backgroundColor: theme.colors.card }]}>
-            <Image source={{ uri: teacher?.avatar }} style={styles.avatar} />
+            <Image source={{ uri: teacher?.avatarUrl || teacher?.avatar }} style={styles.avatar} />
             <View style={styles.profileInfo}>
               <Text style={[styles.name, { color: theme.colors.text }]}>{teacher?.fullName}</Text>
               <Text style={[styles.specialty, { color: theme.colors.primary }]}>{teacher?.specialty}</Text>

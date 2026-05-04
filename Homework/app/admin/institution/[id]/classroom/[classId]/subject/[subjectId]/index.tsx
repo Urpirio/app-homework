@@ -216,6 +216,16 @@ export default function SubjectDetailScreen() {
             <Ionicons name="create-outline" size={20} color={theme.colors.primary} />
           </Pressable>
           <Pressable
+            onPress={() =>
+              router.push(
+                `/admin/institution/${id}/classroom/${classId}/subject/${subjectId}/attendance`
+              )
+            }
+            style={[styles.editBtn, { backgroundColor: '#34C75915', marginLeft: 8 }]}
+          >
+            <Ionicons name="people-outline" size={20} color="#34C759" />
+          </Pressable>
+          <Pressable
             onPress={handleDelete}
             style={[styles.deleteBtn, { backgroundColor: '#FF3B3015' }]}
           >

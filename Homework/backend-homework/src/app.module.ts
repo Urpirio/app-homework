@@ -22,6 +22,7 @@ import { ClassroomsModule } from './classrooms/classrooms.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { AttendanceModule } from './attendance/attendance.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { ReviewsModule } from './reviews/reviews.module';
     SubjectsModule,
     TicketsModule,
     ReviewsModule,
+    AttendanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

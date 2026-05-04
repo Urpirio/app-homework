@@ -97,18 +97,14 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id: studentId },
       include: {
-        classroom: true,
-        submissions: {
+        classroom: {
           include: {
-            task: {
-              include: {
-                project: {
-                  include: { user: { select: { fullName: true } } }
-                }
-              }
+            projects: {
+              include: { user: { select: { fullName: true } } }
             }
           }
-        }
+        },
+        submissions: true
       }
     });
 
@@ -122,32 +118,54 @@ export class UsersService {
       }
     });
 
+    const attStats = await this.prisma.attendance.groupBy({
+      by: ['status'],
+      where: { studentId },
+      _count: { id: true }
+    });
+    const attTotal = attStats.reduce((acc, curr) => acc + curr._count.id, 0);
+    const attPresent = attStats.find(s => s.status === 'PRESENT')?._count.id || 0;
+    const attPercentage = attTotal > 0 ? (attPresent / attTotal) * 100 : 100;
+
     return {
       ...user,
       stats: {
         ...stats,
         pendingTasks,
-        attendance: "95%" // Placeholder for now
+        attendance: `${attPercentage.toFixed(0)}%`
       },
-      subjects: user.submissions.map(s => {
-        const grade = s.grade || 0;
-        let letter = 'F';
-        if (grade >= 9.5) letter = 'A+';
-        else if (grade >= 9) letter = 'A';
-        else if (grade >= 8.5) letter = 'B+';
-        else if (grade >= 8) letter = 'B';
-        else if (grade >= 7.5) letter = 'C+';
-        else if (grade >= 7) letter = 'C';
-        else if (grade >= 6) letter = 'D';
+      subjects: await Promise.all((user.classroom?.projects || []).map(async (p) => {
+        const gradeData = await this.prisma.submission.aggregate({
+          where: {
+            studentId,
+            task: { projectId: p.id },
+            status: 'GRADED',
+          },
+          _avg: { grade: true },
+        });
+
+        const grade = gradeData._avg.grade;
+        let letter = 'N/A';
+
+        if (grade !== null) {
+          if (grade >= 9.5) letter = 'A+';
+          else if (grade >= 9) letter = 'A';
+          else if (grade >= 8.5) letter = 'B+';
+          else if (grade >= 8) letter = 'B';
+          else if (grade >= 7.5) letter = 'C+';
+          else if (grade >= 7) letter = 'C';
+          else if (grade >= 6) letter = 'D';
+          else letter = 'F';
+        }
 
         return {
-          id: s.task.project.id,
-          name: s.task.project.name,
-          teacher: s.task.project.user.fullName,
-          grade: s.grade,
-          letter
+          id: p.id,
+          name: p.name,
+          teacher: p.user.fullName,
+          grade: grade ? parseFloat(grade.toFixed(1)) : null,
+          letter,
         };
-      })
+      })),
     };
   }
 
