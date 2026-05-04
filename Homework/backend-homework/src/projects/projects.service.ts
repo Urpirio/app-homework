@@ -293,7 +293,19 @@ export class ProjectsService {
   }
 
   async updateUnit(id: string, userId: string, data: any) {
-    // Implementar validación de permisos similar a createUnit
+    const unit = await this.prisma.unit.findUnique({
+      where: { id },
+      include: { project: true }
+    });
+    if (!unit) throw new Error('Unidad no encontrada');
+
+    if (unit.project.userId !== userId) {
+      const isTeacher = await this.prisma.projectMember.findFirst({
+        where: { projectId: unit.projectId, userId, role: 'teacher' }
+      });
+      if (!isTeacher) throw new Error('No tienes permisos.');
+    }
+
     return this.prisma.unit.update({
       where: { id },
       data: {
@@ -305,6 +317,19 @@ export class ProjectsService {
   }
 
   async removeUnit(id: string, userId: string) {
+    const unit = await this.prisma.unit.findUnique({
+      where: { id },
+      include: { project: true }
+    });
+    if (!unit) throw new Error('Unidad no encontrada');
+
+    if (unit.project.userId !== userId) {
+      const isTeacher = await this.prisma.projectMember.findFirst({
+        where: { projectId: unit.projectId, userId, role: 'teacher' }
+      });
+      if (!isTeacher) throw new Error('No tienes permisos.');
+    }
+
     return this.prisma.unit.delete({
       where: { id }
     });

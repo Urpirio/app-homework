@@ -9,8 +9,9 @@
  * Validates: Requirements 7.6
  */
 
+import { useProfile } from '@/hooks/api/useAuth';
 import { queryClient } from '@/utils/queryClient';
-import React, { createContext, useCallback, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
 
 export interface InstitutionContextValue {
   /** Currently selected institution ID, or null if none selected */
@@ -45,6 +46,7 @@ interface InstitutionProviderProps {
 
 export function InstitutionProvider({ children }: InstitutionProviderProps) {
   const [institutionId, setInstitutionIdState] = useState<string | null>(null);
+  const { data: profile } = useProfile();
 
   const setInstitutionId = useCallback((id: string | null) => {
     setInstitutionIdState(id);
@@ -55,6 +57,13 @@ export function InstitutionProvider({ children }: InstitutionProviderProps) {
       queryClient.invalidateQueries({ queryKey: [key] });
     });
   }, []);
+
+  // Auto-sync institutionId for SCHOOL_ADMIN (and SUPER_ADMIN if profile has one)
+  useEffect(() => {
+    if (profile?.institutionId && !institutionId) {
+      setInstitutionId(profile.institutionId);
+    }
+  }, [profile, institutionId, setInstitutionId]);
 
   const value = useMemo<InstitutionContextValue>(
     () => ({ institutionId, setInstitutionId }),

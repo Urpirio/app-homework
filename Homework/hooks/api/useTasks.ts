@@ -149,6 +149,8 @@ export function useCreateTask() {
       if (variables.unitId) {
         queryClient.invalidateQueries({ queryKey: taskKeys.byUnit(variables.unitId) });
       }
+      // Also invalidate useUnitTasksFromProject which uses ['projects', 'units', ...]
+      queryClient.invalidateQueries({ queryKey: ['projects', 'units', variables.projectId] });
     },
   });
 }

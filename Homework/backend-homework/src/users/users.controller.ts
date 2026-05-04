@@ -11,6 +11,24 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Get('users')
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
+  async findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('role') role?: string,
+    @Query('institutionId') institutionId?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.usersService.findAll({
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      role,
+      institutionId,
+      search,
+    });
+  }
+
   @Get('students/:id/profile')
   @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN, Role.TEACHER)
   async getStudentProfile(@Param('id') id: string) {

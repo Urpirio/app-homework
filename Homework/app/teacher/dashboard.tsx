@@ -1,586 +1,251 @@
 /**
- * Teacher Dashboard Screen
- *
- * Primary landing screen for TEACHER role users. Aggregates data from multiple
- * endpoints into a unified view: stats, subjects, pending submissions, and
- * upcoming deadlines.
- *
- * Validates: Requirements 3.2, 3.3, 3.4
- * Design: Frontend Screen Designs — Teacher Dashboard
+ * Teacher Dashboard — Sub-screen accessible from Home quick action.
+ * Shows: subjects overview, pending submissions, upcoming deadlines.
+ * All data comes from GET /projects (already working).
  */
 
+import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { ErrorState } from '@/components/shared/ErrorState';
 import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
-import { useProfile } from '@/hooks/api/useAuth';
-import { useCalendarTasks } from '@/hooks/api/useTasks';
-import { useTeacherStudents, useTeacherSubjects } from '@/hooks/api/useUsers';
+import { ThemedView } from '@/components/shared/ThemedView';
+import { useProjects } from '@/hooks/api/useProjects';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useMemo } from 'react';
 import {
-    Dimensions,
-    FlatList,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// ─── Date helpers ────────────────────────────────────────────────────────────
-
-function getDateRange() {
-  const now = new Date();
-  const start = now.toISOString().split('T')[0];
-  const end = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split('T')[0];
-  return { start, end };
-}
-
-function formatRelativeDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) return 'Vencido';
-  if (diffDays === 0) return 'Hoy';
-  if (diffDays === 1) return 'Mañana';
-  if (diffDays <= 7) return `En ${diffDays} días`;
-  return date.toLocaleDateString('es', { month: 'short', day: 'numeric' });
-}
-
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-function DashboardHeader({
-  name,
-  institution,
-}: {
-  name: string;
-  institution?: string;
-}) {
-  const { theme } = useTheme();
-
-  return (
-    <View style={styles.header}>
-      <View>
-        <Text style={[styles.greeting, { color: theme.colors.textSecondary }]}>
-          Bienvenido
-        </Text>
-        <Text style={[styles.title, { color: theme.colors.text }]}>{name}</Text>
-        {institution ? (
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            {institution}
-          </Text>
-        ) : null}
-      </View>
-      <Pressable
-        onPress={() => router.push('/profile')}
-        accessibilityRole="button"
-        accessibilityLabel="Ver perfil"
-        style={[styles.avatarBtn, { backgroundColor: theme.colors.primary + '15' }]}
-      >
-        <Ionicons name="person" size={24} color={theme.colors.primary} />
-      </Pressable>
-    </View>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-  icon,
-  color,
-  index,
-}: {
-  label: string;
-  value: string | number;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  index: number;
-}) {
-  const { theme } = useTheme();
-
-  return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 80).springify()}
-      style={[
-        styles.statTile,
-        {
-          backgroundColor: theme.colors.card,
-          borderColor: theme.colors.border + '50',
-        },
-      ]}
-      accessibilityRole="text"
-      accessibilityLabel={`${label}: ${value}`}
-    >
-      <View style={[styles.statIcon, { backgroundColor: color + '15' }]}>
-        <Ionicons name={icon} size={20} color={color} />
-      </View>
-      <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
-      <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-        {label}
-      </Text>
-    </Animated.View>
-  );
-}
-
-function QuickActionTile({
-  label,
-  icon,
-  color,
-  onPress,
-}: {
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  onPress: () => void;
-}) {
-  const { theme } = useTheme();
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [
-        styles.quickAction,
-        {
-          backgroundColor: theme.colors.card,
-          borderColor: theme.colors.border + '50',
-          opacity: pressed ? 0.7 : 1,
-        },
-      ]}
-    >
-      <View style={[styles.quickActionIcon, { backgroundColor: color + '15' }]}>
-        <Ionicons name={icon} size={22} color={color} />
-      </View>
-      <Text
-        style={[styles.quickActionLabel, { color: theme.colors.text }]}
-        numberOfLines={2}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-interface SubjectCardData {
-  id: string;
-  name: string;
-  classroomName: string;
-  studentCount: number;
-  taskCount: number;
-  avgGrade: number;
-}
-
-function SubjectCard({ item }: { item: SubjectCardData }) {
-  const { theme } = useTheme();
-
-  return (
-    <Pressable
-      onPress={() => router.push(`/projects/${item.id}`)}
-      accessibilityRole="button"
-      accessibilityLabel={`Materia: ${item.name}`}
-      style={({ pressed }) => [
-        styles.subjectCard,
-        {
-          backgroundColor: theme.colors.card,
-          borderColor: theme.colors.border + '50',
-          opacity: pressed ? 0.7 : 1,
-        },
-      ]}
-    >
-      <Text style={[styles.subjectName, { color: theme.colors.text }]} numberOfLines={1}>
-        {item.name}
-      </Text>
-      <Text style={[styles.subjectClassroom, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-        {item.classroomName}
-      </Text>
-      <View style={styles.subjectStats}>
-        <View style={styles.subjectStatItem}>
-          <Ionicons name="people-outline" size={14} color={theme.colors.textSecondary} />
-          <Text style={[styles.subjectStatText, { color: theme.colors.textSecondary }]}>
-            {item.studentCount}
-          </Text>
-        </View>
-        <View style={styles.subjectStatItem}>
-          <Ionicons name="document-outline" size={14} color={theme.colors.textSecondary} />
-          <Text style={[styles.subjectStatText, { color: theme.colors.textSecondary }]}>
-            {item.taskCount}
-          </Text>
-        </View>
-        <View style={styles.subjectStatItem}>
-          <Ionicons name="star-outline" size={14} color="#FF9500" />
-          <Text style={[styles.subjectStatText, { color: '#FF9500' }]}>
-            {item.avgGrade.toFixed(1)}
-          </Text>
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
-function DeadlineRow({
-  title,
-  subject,
-  dueDate,
-}: {
-  title: string;
-  subject: string;
-  dueDate: string;
-}) {
-  const { theme } = useTheme();
-  const relative = formatRelativeDate(dueDate);
-  const isUrgent = relative === 'Hoy' || relative === 'Mañana' || relative === 'Vencido';
-
-  return (
-    <View
-      style={[
-        styles.deadlineRow,
-        { borderBottomColor: theme.colors.border + '30' },
-      ]}
-    >
-      <View style={styles.deadlineContent}>
-        <Text style={[styles.deadlineTitle, { color: theme.colors.text }]} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={[styles.deadlineSubject, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-          {subject}
-        </Text>
-      </View>
-      <Text
-        style={[
-          styles.deadlineDate,
-          { color: isUrgent ? '#FF3B30' : theme.colors.textSecondary },
-        ]}
-      >
-        {relative}
-      </Text>
-    </View>
-  );
-}
-
-// ─── Main Component ──────────────────────────────────────────────────────────
-
 export default function TeacherDashboard() {
   const { theme } = useTheme();
-  const { start, end } = useMemo(getDateRange, []);
+  const { data: projects, isLoading, refetch } = useProjects();
 
-  // Data fetching
-  const { data: profile, isLoading: profileLoading, error: profileError } = useProfile();
-  const teacherId = profile?.id ?? '';
+  const subjects = projects ?? [];
 
-  const {
-    data: subjectsData,
-    isLoading: subjectsLoading,
-    error: subjectsError,
-  } = useTeacherSubjects(teacherId);
-
-  const {
-    data: studentsData,
-    isLoading: studentsLoading,
-  } = useTeacherStudents(teacherId);
-
-  const {
-    data: calendarData,
-    isLoading: calendarLoading,
-  } = useCalendarTasks(start, end);
-
-  // Derived data
-  const subjects: SubjectCardData[] = useMemo(() => {
-    if (!subjectsData?.pages) return [];
-    return subjectsData.pages.flatMap((page) => page.data);
-  }, [subjectsData]);
-
-  const totalStudents = studentsData?.pages?.[0]?.total ?? 0;
-  const totalSubjects = subjectsData?.pages?.[0]?.total ?? 0;
-
-  const weightedAvg = useMemo(() => {
-    if (subjects.length === 0) return 0;
-    const totalWeight = subjects.reduce((sum, s) => sum + s.studentCount, 0);
-    if (totalWeight === 0) return 0;
-    return subjects.reduce((sum, s) => sum + s.avgGrade * s.studentCount, 0) / totalWeight;
+  // Collect all pending submissions across subjects
+  const pendingSubmissions = useMemo(() => {
+    const subs: any[] = [];
+    for (const p of subjects) {
+      const raw = p as any;
+      for (const t of (raw.tasks ?? [])) {
+        for (const s of (t.submissions ?? [])) {
+          if (s.status === 'SUBMITTED') {
+            subs.push({ ...s, taskTitle: t.title, taskId: t.id, subject: raw.name });
+          }
+        }
+      }
+    }
+    return subs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [subjects]);
 
-  const upcomingDeadlines = useMemo(() => {
-    if (!calendarData?.tasks) return [];
-    return calendarData.tasks
-      .filter((t) => new Date(t.dueDate) >= new Date())
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-      .slice(0, 5);
-  }, [calendarData]);
+  // Upcoming deadlines
+  const deadlines = useMemo(() => {
+    const now = new Date();
+    const all: any[] = [];
+    for (const p of subjects) {
+      const raw = p as any;
+      for (const t of (raw.tasks ?? [])) {
+        if (t.dueDate && new Date(t.dueDate) > now && t.status !== 'DONE') {
+          all.push({ ...t, subject: raw.name, projectId: raw.id });
+        }
+      }
+    }
+    return all.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()).slice(0, 8);
+  }, [subjects]);
 
-  // Loading state
-  const isLoading = profileLoading || subjectsLoading;
+  const totalStudents = useMemo(() => {
+    const ids = new Set<string>();
+    for (const p of subjects) {
+      for (const m of ((p as any).members ?? [])) {
+        if (m.role === 'student') ids.add(m.userId);
+      }
+    }
+    return ids.size;
+  }, [subjects]);
 
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
-        <SkeletonLoader rows={6} variant="card" />
+        <ThemedView style={styles.container}>
+          <BackgroundShapes />
+          <View style={styles.header}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+            </Pressable>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Dashboard</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <SkeletonLoader rows={5} variant="card" style={{ padding: 20 }} />
+        </ThemedView>
       </SafeAreaView>
     );
   }
 
-  // Error state
-  if (profileError || subjectsError) {
-    return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
-        <ErrorState error={profileError ?? subjectsError!} onRetry={() => {}} />
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Header */}
-        <DashboardHeader
-          name={profile?.fullName ?? 'Profesor'}
-          institution={undefined}
-        />
+      <ThemedView style={styles.container}>
+        <BackgroundShapes />
 
-        {/* Stats Row — 4 tiles */}
-        <View style={styles.statsRow}>
-          <StatTile
-            label="Estudiantes"
-            value={totalStudents}
-            icon="people"
-            color="#007AFF"
-            index={0}
-          />
-          <StatTile
-            label="Materias"
-            value={totalSubjects}
-            icon="book"
-            color="#5856D6"
-            index={1}
-          />
-          <StatTile
-            label="Pendientes"
-            value={0}
-            icon="hourglass"
-            color="#FF9500"
-            index={2}
-          />
-          <StatTile
-            label="Promedio"
-            value={weightedAvg.toFixed(1)}
-            icon="trending-up"
-            color="#32D74B"
-            index={3}
-          />
+        {/* Header — simple back + title */}
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Dashboard</Text>
+          <Pressable onPress={() => refetch()} style={styles.backBtn}>
+            <Ionicons name="refresh-outline" size={22} color={theme.colors.primary} />
+          </Pressable>
         </View>
 
-        {/* Quick Actions */}
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-          Acciones Rápidas
-        </Text>
-        <View style={styles.quickActionsRow}>
-          <QuickActionTile
-            label="Crear Tarea"
-            icon="add-circle-outline"
-            color="#007AFF"
-            onPress={() => router.push('/tasks/[id]')}
-          />
-          <QuickActionTile
-            label="Calificaciones"
-            icon="school-outline"
-            color="#5856D6"
-            onPress={() => router.push('/grades')}
-          />
-          <QuickActionTile
-            label="Analíticas"
-            icon="analytics-outline"
-            color="#FF9500"
-            onPress={() => router.push('/admin/analytics')}
-          />
-          <QuickActionTile
-            label="Calendario"
-            icon="calendar-outline"
-            color="#32D74B"
-            onPress={() => router.push('/calendar')}
-          />
-        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* Subjects List — horizontal scroll */}
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-          Mis Materias
-        </Text>
-        {subjects.length > 0 ? (
-          <FlatList
-            data={subjects}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <SubjectCard item={item} />}
-            contentContainerStyle={styles.subjectsList}
-          />
-        ) : (
-          <EmptyState
-            icon="book-outline"
-            title="Sin materias"
-            message="No tienes materias asignadas actualmente."
-            style={styles.emptyInline}
-          />
-        )}
+          {/* Stats */}
+          <Animated.View entering={FadeInDown.duration(400)} style={styles.statsRow}>
+            <View style={[styles.stat, { backgroundColor: theme.colors.card }]}>
+              <Ionicons name="journal-outline" size={20} color="#5856D6" />
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{subjects.length}</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Materias</Text>
+            </View>
+            <View style={[styles.stat, { backgroundColor: theme.colors.card }]}>
+              <Ionicons name="people-outline" size={20} color="#007AFF" />
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{totalStudents}</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Estudiantes</Text>
+            </View>
+            <View style={[styles.stat, { backgroundColor: theme.colors.card }]}>
+              <Ionicons name="document-text-outline" size={20} color="#FF9500" />
+              <Text style={[styles.statValue, { color: theme.colors.text }]}>{pendingSubmissions.length}</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Por calificar</Text>
+            </View>
+          </Animated.View>
 
-        {/* Upcoming Deadlines */}
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-          Próximas Fechas Límite
-        </Text>
-        {upcomingDeadlines.length > 0 ? (
-          <View
-            style={[
-              styles.deadlinesCard,
-              {
-                backgroundColor: theme.colors.card,
-                borderColor: theme.colors.border + '50',
-              },
-            ]}
-          >
-            {upcomingDeadlines.map((task) => (
-              <DeadlineRow
-                key={task.id}
-                title={task.title}
-                subject={task.projectName}
-                dueDate={task.dueDate}
-              />
-            ))}
-          </View>
-        ) : (
-          <EmptyState
-            icon="calendar-outline"
-            title="Sin fechas próximas"
-            message="No hay tareas con fecha límite próxima."
-            style={styles.emptyInline}
-          />
-        )}
-      </ScrollView>
+          {/* Subjects */}
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Mis Materias</Text>
+          {subjects.length === 0 ? (
+            <EmptyState icon="book-outline" title="Sin materias" message="No tienes materias asignadas." />
+          ) : (
+            <FlatList
+              data={subjects}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ gap: 10, paddingRight: 20, marginBottom: 20 }}
+              renderItem={({ item, index }) => (
+                <Animated.View entering={FadeInDown.delay(index * 60)}>
+                  <Pressable
+                    onPress={() => router.push(`/projects/${item.id}` as any)}
+                    style={({ pressed }) => [styles.subjectCard, { backgroundColor: theme.colors.card, opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <View style={[styles.subjectDot, { backgroundColor: item.color || theme.colors.primary }]} />
+                    <Text style={[styles.subjectName, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Text>
+                    <Text style={[styles.subjectMeta, { color: theme.colors.textSecondary }]}>
+                      {item.tasksCount} tareas · {item.progress}%
+                    </Text>
+                  </Pressable>
+                </Animated.View>
+              )}
+            />
+          )}
+
+          {/* Pending Submissions */}
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Entregas por Calificar</Text>
+          {pendingSubmissions.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: theme.colors.card }]}>
+              <Ionicons name="checkmark-circle-outline" size={28} color="#34C759" />
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>Todo calificado</Text>
+            </View>
+          ) : (
+            pendingSubmissions.slice(0, 10).map((sub: any, index: number) => (
+              <Animated.View key={sub.id} entering={FadeInDown.delay(index * 40)}>
+                <Pressable
+                  onPress={() => router.push({ pathname: '/tasks/[taskId]/submissions', params: { taskId: sub.taskId } } as any)}
+                  style={({ pressed }) => [styles.subRow, { backgroundColor: theme.colors.card, opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <View style={[styles.subAvatar, { backgroundColor: '#FF950018' }]}>
+                    <Ionicons name="person-outline" size={16} color="#FF9500" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.subName, { color: theme.colors.text }]} numberOfLines={1}>
+                      {sub.student?.fullName ?? 'Estudiante'}
+                    </Text>
+                    <Text style={[styles.subTask, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                      {sub.taskTitle} · {sub.subject}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.border} />
+                </Pressable>
+              </Animated.View>
+            ))
+          )}
+
+          {/* Upcoming Deadlines */}
+          <Text style={[styles.sectionTitle, { color: theme.colors.text, marginTop: 16 }]}>Próximas Fechas Límite</Text>
+          {deadlines.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: theme.colors.card }]}>
+              <Ionicons name="calendar-outline" size={28} color={theme.colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>Sin fechas próximas</Text>
+            </View>
+          ) : (
+            deadlines.map((task: any, index: number) => {
+              const diff = Math.ceil((new Date(task.dueDate).getTime() - Date.now()) / 86400000);
+              const dateLabel = diff === 0 ? 'Hoy' : diff === 1 ? 'Mañana' : `${diff}d`;
+              const urgent = diff <= 2;
+              return (
+                <Animated.View key={task.id} entering={FadeInDown.delay(index * 40)}>
+                  <Pressable
+                    onPress={() => router.push(`/tasks/${task.id}` as any)}
+                    style={({ pressed }) => [styles.subRow, { backgroundColor: theme.colors.card, opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.subName, { color: theme.colors.text }]} numberOfLines={1}>{task.title}</Text>
+                      <Text style={[styles.subTask, { color: theme.colors.textSecondary }]}>{task.subject}</Text>
+                    </View>
+                    <View style={[styles.dateBadge, { backgroundColor: urgent ? '#FF3B3020' : theme.colors.primaryLight }]}>
+                      <Text style={[styles.dateBadgeText, { color: urgent ? '#FF3B30' : theme.colors.primary }]}>{dateLabel}</Text>
+                    </View>
+                  </Pressable>
+                </Animated.View>
+              );
+            })
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </ThemedView>
     </SafeAreaView>
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  greeting: { fontSize: 14, fontWeight: '500' },
-  title: { fontSize: 28, fontWeight: '800', marginTop: 2 },
-  subtitle: { fontSize: 14, marginTop: 2 },
-  avatarBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Stats
-  statsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 24,
-  },
-  statTile: {
-    width: (SCREEN_WIDTH - 42) / 2,
-    padding: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  statIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  statValue: { fontSize: 20, fontWeight: '800' },
-  statLabel: { fontSize: 11, fontWeight: '600', marginTop: 2 },
-
-  // Section
-  sectionTitle: { fontSize: 20, fontWeight: '800', marginBottom: 12 },
-
-  // Quick Actions
-  quickActionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 24,
-  },
-  quickAction: {
-    width: (SCREEN_WIDTH - 42) / 2,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  quickActionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  quickActionLabel: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
-
-  // Subjects
-  subjectsList: { gap: 12, paddingRight: 16, marginBottom: 24 },
-  subjectCard: {
-    width: 180,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  subjectName: { fontSize: 16, fontWeight: '700' },
-  subjectClassroom: { fontSize: 12, marginTop: 2, marginBottom: 10 },
-  subjectStats: { flexDirection: 'row', gap: 12 },
-  subjectStatItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  subjectStatText: { fontSize: 12, fontWeight: '600' },
-
-  // Deadlines
-  deadlinesCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 4,
-    marginBottom: 24,
-  },
-  deadlineRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  deadlineContent: { flex: 1, marginRight: 12 },
-  deadlineTitle: { fontSize: 14, fontWeight: '600' },
-  deadlineSubject: { fontSize: 12, marginTop: 2 },
-  deadlineDate: { fontSize: 12, fontWeight: '700' },
-
-  // Empty inline
-  emptyInline: { flex: 0, paddingVertical: 24, marginBottom: 16 },
+  container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center' },
+  headerTitle: { fontSize: 20, fontWeight: '900' },
+  scroll: { paddingHorizontal: 20 },
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  stat: { flex: 1, padding: 14, borderRadius: 18, alignItems: 'center', gap: 4 },
+  statValue: { fontSize: 20, fontWeight: '900' },
+  statLabel: { fontSize: 10, fontWeight: '700' },
+  sectionTitle: { fontSize: 18, fontWeight: '900', marginBottom: 12 },
+  subjectCard: { width: 160, padding: 14, borderRadius: 18 },
+  subjectDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 8 },
+  subjectName: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
+  subjectMeta: { fontSize: 11, fontWeight: '600' },
+  emptyCard: { padding: 24, borderRadius: 18, alignItems: 'center', gap: 8, marginBottom: 16 },
+  emptyText: { fontSize: 13, fontWeight: '600' },
+  subRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 16, marginBottom: 8, gap: 12 },
+  subAvatar: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  subName: { fontSize: 14, fontWeight: '700' },
+  subTask: { fontSize: 12, marginTop: 2 },
+  dateBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  dateBadgeText: { fontSize: 12, fontWeight: '800' },
 });

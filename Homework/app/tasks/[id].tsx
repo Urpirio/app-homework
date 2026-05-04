@@ -5,11 +5,14 @@ import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { UploadProgressBar } from '@/components/shared/UploadProgressBar';
 import { useCreateSubmission } from '@/hooks/api/useSubmissions';
-import { useTask } from '@/hooks/api/useTasks';
+import { useTask, useUpdateTask, useDeleteTask } from '@/hooks/api/useTasks';
 import type { FileInput } from '@/hooks/api/useUploads';
 import { useFileUpload, validateFile } from '@/hooks/api/useUploads';
+import { useProfile } from '@/hooks/api/useAuth';
+import { UserRole } from '@/types/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
@@ -41,14 +44,27 @@ export default function TaskDetailScreen() {
     refetch,
   } = useTask(taskId);
 
+  const { data: profile } = useProfile();
+
   // Submission and upload mutations
   const createSubmission = useCreateSubmission();
   const fileUpload = useFileUpload();
+  const updateTask = useUpdateTask();
+  const deleteTask = useDeleteTask();
 
   // Submission modal state
   const [submitModalVisible, setSubmitModalVisible] = useState(false);
   const [submissionComment, setSubmissionComment] = useState('');
   const [selectedFile, setSelectedFile] = useState<FileInput | null>(null);
+
+  // Edit task state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editMaxGrade, setEditMaxGrade] = useState('100');
+  const [editType, setEditType] = useState<'ASSIGNMENT' | 'EXAM' | 'QUIZ' | 'NOTE'>('ASSIGNMENT');
+  const [editDueDate, setEditDueDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const isSubmitted = (task as any)?.submissions?.length > 0;
   const submission = isSubmitted ? (task as any).submissions[0] : null;
@@ -154,6 +170,62 @@ export default function TaskDetailScreen() {
     fileUpload.reset();
   };
 
+  const handleEditTask = () => {
+    if (!task) return;
+    setEditTitle(task.title);
+    setEditDesc(task.description || '');
+    setEditMaxGrade(task.maxGrade?.toString() || '100');
+    setEditType((task.type as any) || 'ASSIGNMENT');
+    setEditDueDate(task.dueDate ? new Date(task.dueDate) : null);
+    setEditModalVisible(true);
+  };
+
+  const handleUpdateTask = async () => {
+    if (!editTitle.trim()) {
+      Alert.alert('Campo requerido', 'El título de la tarea es obligatorio.');
+      return;
+    }
+    const maxGrade = parseInt(editMaxGrade) || 100;
+    try {
+      await updateTask.mutateAsync({
+        id: taskId,
+        title: editTitle.trim(),
+        description: editDesc.trim() || undefined,
+        maxGrade,
+        type: editType,
+        dueDate: editDueDate ? editDueDate.toISOString() : undefined,
+      });
+      setEditModalVisible(false);
+      Toast.show({ type: 'success', text1: 'Tarea actualizada' });
+      refetch();
+    } catch {
+      Toast.show({ type: 'error', text1: 'Error al actualizar tarea' });
+    }
+  };
+
+  const handleDeleteTask = () => {
+    Alert.alert(
+      'Eliminar Tarea',
+      '¿Estás seguro de que quieres eliminar esta tarea? Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteTask.mutateAsync(taskId);
+              Toast.show({ type: 'success', text1: 'Tarea eliminada' });
+              router.back();
+            } catch {
+              Toast.show({ type: 'error', text1: 'Error al eliminar tarea' });
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Loading state with skeleton
   if (isLoading) {
     return (
@@ -216,6 +288,10 @@ export default function TaskDetailScreen() {
   const canResubmit = isSubmitted && !isGraded && !isDeadlinePassed;
   const canSubmit = !isSubmitted && !isDeadlinePassed;
 
+  const isTeacher = profile?.role === UserRole.TEACHER || profile?.role === UserRole.SCHOOL_ADMIN || profile?.role === UserRole.SUPER_ADMIN;
+  const isOwner = profile?.id === (task as any)?.project?.userId;
+  const canActuallySubmit = (canSubmit || canResubmit) && !isTeacher && !isOwner;
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
       <ThemedView style={styles.container}>
@@ -233,6 +309,16 @@ export default function TaskDetailScreen() {
               {(task as any)?.project?.name}
             </Text>
           </View>
+          {(isTeacher || isOwner) && (
+            <View style={styles.headerActions}>
+              <Pressable onPress={handleEditTask} style={styles.headerActionBtn}>
+                <Ionicons name="pencil" size={20} color={theme.colors.text} />
+              </Pressable>
+              <Pressable onPress={handleDeleteTask} style={styles.headerActionBtn}>
+                <Ionicons name="trash" size={20} color="#FF3B30" />
+              </Pressable>
+            </View>
+          )}
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -458,8 +544,8 @@ export default function TaskDetailScreen() {
           <View style={{ height: 120 }} />
         </ScrollView>
 
-        {/* Submit / Resubmit button */}
-        {(canSubmit || canResubmit) && (
+        {/* Submit / Resubmit button for students */}
+        {canActuallySubmit && (
           <View style={styles.footer}>
             <Pressable
               onPress={() => setSubmitModalVisible(true)}
@@ -473,8 +559,22 @@ export default function TaskDetailScreen() {
           </View>
         )}
 
+        {/* View Submissions button for teachers/owners */}
+        {(isTeacher || isOwner) && (
+          <View style={styles.footer}>
+            <Pressable
+              onPress={() => router.push({ pathname: '/tasks/[taskId]/submissions', params: { taskId: id } } as any)}
+              style={[styles.mainBtn, { backgroundColor: theme.colors.primary }]}
+            >
+              <Ionicons name="people-outline" size={24} color="#FFF" />
+              <Text style={styles.mainBtnText}>Ver Entregas</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Upload Modal */}
         <Modal visible={submitModalVisible} animationType="slide" transparent>
+          {/* ... existing upload modal ... */}
           <View style={styles.modalOverlay}>
             <Animated.View
               entering={FadeInUp}
@@ -590,6 +690,122 @@ export default function TaskDetailScreen() {
                   </>
                 )}
               </Pressable>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Edit Task Modal */}
+        <Modal visible={editModalVisible} transparent animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <Animated.View 
+              entering={FadeInUp}
+              style={[styles.editModalCard, { backgroundColor: theme.colors.card }]}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Editar Tarea</Text>
+                <Pressable onPress={() => setEditModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={theme.colors.text} />
+                </Pressable>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={{ gap: 16 }}>
+                  <View>
+                    <Text style={[styles.fieldLabel, { color: theme.colors.text, marginBottom: 8 }]}>Título *</Text>
+                    <TextInput
+                      style={[styles.modalInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
+                      placeholder="Título de la tarea"
+                      placeholderTextColor={theme.colors.textSecondary}
+                      value={editTitle}
+                      onChangeText={setEditTitle}
+                    />
+                  </View>
+
+                  <View>
+                    <Text style={[styles.fieldLabel, { color: theme.colors.text, marginBottom: 8 }]}>Descripción</Text>
+                    <TextInput
+                      style={[styles.modalInput, styles.modalTextArea, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
+                      placeholder="Descripción o instrucciones"
+                      placeholderTextColor={theme.colors.textSecondary}
+                      value={editDesc}
+                      onChangeText={setEditDesc}
+                      multiline
+                    />
+                  </View>
+
+                  <View style={styles.fieldRow}>
+                    <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>Nota máxima</Text>
+                    <TextInput
+                      style={[styles.smallInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
+                      value={editMaxGrade}
+                      onChangeText={setEditMaxGrade}
+                      keyboardType="numeric"
+                      maxLength={3}
+                    />
+                  </View>
+
+                  <View>
+                    <Text style={[styles.fieldLabel, { color: theme.colors.text, marginBottom: 8 }]}>Fecha Límite</Text>
+                    <Pressable
+                      onPress={() => setShowDatePicker(true)}
+                      style={[styles.modalInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
+                    >
+                      <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
+                      <Text style={{ color: editDueDate ? theme.colors.text : theme.colors.textSecondary, fontSize: 15 }}>
+                        {editDueDate
+                          ? editDueDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+                          : 'Sin fecha límite'}
+                      </Text>
+                      {editDueDate && (
+                        <Pressable onPress={() => setEditDueDate(null)} style={{ marginLeft: 'auto' }}>
+                          <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
+                        </Pressable>
+                      )}
+                    </Pressable>
+                  </View>
+
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={editDueDate ?? new Date()}
+                      mode="date"
+                      onChange={(event: any, date?: Date) => {
+                        setShowDatePicker(false);
+                        if (date) setEditDueDate(date);
+                      }}
+                    />
+                  )}
+
+                  <View>
+                    <Text style={[styles.fieldLabel, { color: theme.colors.text, marginBottom: 8 }]}>Tipo</Text>
+                    <View style={styles.typeRow}>
+                      {(['ASSIGNMENT', 'EXAM', 'QUIZ', 'NOTE'] as const).map(t => (
+                        <Pressable
+                          key={t}
+                          onPress={() => setEditType(t)}
+                          style={[styles.typeBtn, { backgroundColor: editType === t ? theme.colors.primary : theme.colors.background, borderColor: theme.colors.border }]}
+                        >
+                          <Text style={[styles.typeBtnText, { color: editType === t ? '#FFF' : theme.colors.textSecondary }]}>
+                            {t === 'ASSIGNMENT' ? 'Tarea' : t === 'EXAM' ? 'Examen' : t === 'QUIZ' ? 'Quiz' : 'Nota'}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.modalBtns}>
+                    <Pressable onPress={() => setEditModalVisible(false)} style={[styles.modalCancelBtn, { borderColor: theme.colors.border }]}>
+                      <Text style={[styles.modalCancelText, { color: theme.colors.textSecondary }]}>Cancelar</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleUpdateTask}
+                      disabled={updateTask.isPending}
+                      style={[styles.modalConfirmBtn, { backgroundColor: theme.colors.primary }]}
+                    >
+                      <Text style={styles.modalConfirmText}>{updateTask.isPending ? 'Guardando...' : 'Guardar Cambios'}</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </ScrollView>
             </Animated.View>
           </View>
         </Modal>
@@ -738,4 +954,20 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
+  headerActions: { flexDirection: 'row', gap: 8 },
+  headerActionBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  editModalCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 12, minHeight: 500 },
+  modalInput: { borderWidth: 1, borderRadius: 14, padding: 14, fontSize: 15 },
+  modalTextArea: { minHeight: 80, textAlignVertical: 'top' },
+  fieldRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  fieldLabel: { fontSize: 14, fontWeight: '700' },
+  smallInput: { width: 80, borderWidth: 1, borderRadius: 12, padding: 10, fontSize: 16, textAlign: 'center', fontWeight: '800' },
+  typeRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  typeBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  typeBtnText: { fontSize: 12, fontWeight: '700' },
+  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  modalCancelBtn: { flex: 1, borderWidth: 1, borderRadius: 14, padding: 14, alignItems: 'center' },
+  modalCancelText: { fontSize: 15, fontWeight: '700' },
+  modalConfirmBtn: { flex: 2, borderRadius: 14, padding: 14, alignItems: 'center' },
+  modalConfirmText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
 });

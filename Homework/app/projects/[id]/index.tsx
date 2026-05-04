@@ -3,24 +3,36 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
-import { useSubject, useSubjectUnits } from '@/hooks/api/useProjects';
+import { useProfile } from '@/hooks/api/useAuth';
+import { useCreateUnit, useSubject, useSubjectUnits, useUpdateUnit, useDeleteUnit } from '@/hooks/api/useProjects';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import {
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
+import Toast from 'react-native-toast-message';
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
+  const { data: profile } = useProfile();
+  const isTeacher = profile?.role === 'TEACHER' || profile?.role === 'SUPER_ADMIN' || profile?.role === 'SCHOOL_ADMIN';
+
+  const [showCreateUnit, setShowCreateUnit] = useState(false);
+  const [unitName, setUnitName] = useState('');
+  const [unitDesc, setUnitDesc] = useState('');
+
+  const createUnit = useCreateUnit(id ?? '');
 
   const {
     data: project,
@@ -71,6 +83,26 @@ export default function ProjectDetailScreen() {
   const handleRefetch = () => {
     refetchProject();
     refetchUnits();
+  };
+
+  const handleCreateUnit = async () => {
+    if (!unitName.trim()) {
+      Alert.alert('Campo requerido', 'El nombre de la unidad es obligatorio.');
+      return;
+    }
+    try {
+      await createUnit.mutateAsync({
+        name: unitName.trim(),
+        description: unitDesc.trim() || undefined,
+        order: unitList.length + 1,
+      });
+      setShowCreateUnit(false);
+      setUnitName('');
+      setUnitDesc('');
+      Toast.show({ type: 'success', text1: 'Unidad creada' });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Error al crear unidad' });
+    }
   };
 
   return (
@@ -226,9 +258,19 @@ export default function ProjectDetailScreen() {
                 </View>
 
                 <View style={styles.unitsSection}>
-                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                    Unidades de Aprendizaje
-                  </Text>
+                  <View style={styles.unitsSectionHeader}>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                      Unidades
+                    </Text>
+                    {isTeacher && (
+                      <Pressable
+                        onPress={() => setShowCreateUnit(true)}
+                        style={[styles.addBtn, { backgroundColor: theme.colors.primary }]}
+                      >
+                        <Ionicons name="add" size={16} color="#FFF" />
+                      </Pressable>
+                    )}
+                  </View>
                   {unitList.length === 0 ? (
                     <EmptyState
                       icon="layers-outline"
@@ -242,7 +284,7 @@ export default function ProjectDetailScreen() {
                         <Pressable
                           onPress={() =>
                             router.push({
-                              pathname: `/projects/${id}/unit/${unit.id}`,
+                              pathname: `/projects/${id}/unit/${unit.id}` as any,
                               params: { unitName: unit.name },
                             })
                           }
@@ -299,6 +341,42 @@ export default function ProjectDetailScreen() {
             )}
           </View>
         </ScrollView>
+
+        {/* Create Unit Modal */}
+        <Modal visible={showCreateUnit} transparent animationType="slide" onRequestClose={() => setShowCreateUnit(false)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setShowCreateUnit(false)}>
+            <Pressable style={[styles.modalCard, { backgroundColor: theme.colors.card }]} onPress={() => {}}>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Nueva Unidad</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
+                placeholder="Nombre de la unidad *"
+                placeholderTextColor={theme.colors.textSecondary}
+                value={unitName}
+                onChangeText={setUnitName}
+              />
+              <TextInput
+                style={[styles.modalInput, styles.modalTextArea, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
+                placeholder="Descripción (opcional)"
+                placeholderTextColor={theme.colors.textSecondary}
+                value={unitDesc}
+                onChangeText={setUnitDesc}
+                multiline
+              />
+              <View style={styles.modalBtns}>
+                <Pressable onPress={() => setShowCreateUnit(false)} style={[styles.modalCancelBtn, { borderColor: theme.colors.border }]}>
+                  <Text style={[styles.modalCancelText, { color: theme.colors.textSecondary }]}>Cancelar</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleCreateUnit}
+                  disabled={createUnit.isPending}
+                  style={[styles.modalConfirmBtn, { backgroundColor: theme.colors.primary }]}
+                >
+                  <Text style={styles.modalConfirmText}>{createUnit.isPending ? 'Creando...' : 'Crear'}</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </ThemedView>
     </SafeAreaView>
   );
@@ -375,7 +453,9 @@ const styles = StyleSheet.create({
   },
   miniAvatarText: { fontSize: 11, fontWeight: '800' },
   unitsSection: { marginBottom: 40 },
-  sectionTitle: { fontSize: 20, fontWeight: '900', marginBottom: 20 },
+  unitsSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  sectionTitle: { fontSize: 20, fontWeight: '900' },
+  addBtn: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   emptyUnits: { paddingVertical: 20 },
   unitCard: {
     flexDirection: 'row',
@@ -399,4 +479,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   progressPercent: { fontSize: 11, fontWeight: '800' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 12 },
+  modalTitle: { fontSize: 20, fontWeight: '900', marginBottom: 4 },
+  modalInput: { borderWidth: 1, borderRadius: 14, padding: 14, fontSize: 15 },
+  modalTextArea: { minHeight: 80, textAlignVertical: 'top' },
+  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  modalCancelBtn: { flex: 1, borderWidth: 1, borderRadius: 14, padding: 14, alignItems: 'center' },
+  modalCancelText: { fontSize: 15, fontWeight: '700' },
+  modalConfirmBtn: { flex: 2, borderRadius: 14, padding: 14, alignItems: 'center' },
+  modalConfirmText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
+  unitTeacherActions: { flexDirection: 'row', gap: 10, marginRight: 10 },
+  unitActionBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
 });

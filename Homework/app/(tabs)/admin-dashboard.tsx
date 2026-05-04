@@ -124,7 +124,7 @@ export default function AdminDashboard() {
             <View style={styles.header}>
               <Text style={[styles.title, { color: theme.colors.text }]}>Administración</Text>
               <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-                {user?.institution?.name || 'Gestión Institucional'}
+                {user?.institution?.name || (user?.role === UserRole.SUPER_ADMIN ? 'Panel Global' : 'Gestión Institucional')}
               </Text>
             </View>
 
@@ -141,6 +141,7 @@ export default function AdminDashboard() {
                 value={stats?.students || 0} 
                 icon="people" 
                 color="#007AFF" 
+                onPress={() => contextInstitutionId && router.push(`/admin/institution/${contextInstitutionId}/students`)}
               />
               <StatItem 
                 index={1}
@@ -148,6 +149,7 @@ export default function AdminDashboard() {
                 value={stats?.teachers || 0} 
                 icon="school" 
                 color="#5856D6" 
+                onPress={() => contextInstitutionId && router.push(`/admin/institution/${contextInstitutionId}/teachers`)}
               />
               <StatItem 
                 index={2}
@@ -155,6 +157,7 @@ export default function AdminDashboard() {
                 value={stats?.classrooms || 0} 
                 icon="business" 
                 color="#FF9500" 
+                onPress={() => contextInstitutionId && router.push(`/admin/institution/${contextInstitutionId}/classrooms`)}
               />
               <StatItem 
                 index={3}
@@ -172,6 +175,13 @@ export default function AdminDashboard() {
                 icon="people"
                 color={theme.colors.primary}
                 onPress={() => router.push('/admin/users')}
+              />
+              <AdminAction 
+                title="Aulas e Instalaciones" 
+                subtitle="Gestionar grupos y espacios"
+                icon="business"
+                color="#FF9500"
+                onPress={() => contextInstitutionId && router.push(`/admin/institution/${contextInstitutionId}/classrooms`)}
               />
               <AdminAction 
                 title="Analíticas" 
@@ -216,27 +226,33 @@ export default function AdminDashboard() {
   );
 }
 
-const StatItem = ({ label, value, icon, color, index }: any) => {
+const StatItem = ({ label, value, icon, color, index, onPress }: any) => {
   const { theme } = useTheme();
   return (
     <Animated.View 
       entering={FadeInDown.delay(index * 100).springify()}
-      style={[
-        styles.statItem, 
-        { 
-          backgroundColor: theme.colors.card,
-          borderWidth: 1,
-          borderColor: theme.colors.border + '50',
-        }
-      ]}
+      style={{ width: (SCREEN_WIDTH - 44) / 2 }}
     >
-      <View style={[styles.statIcon, { backgroundColor: color + '15' }]}>
-        <Ionicons name={icon} size={22} color={color} />
-      </View>
-      <View style={styles.statContent}>
-        <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
-        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
-      </View>
+      <Pressable 
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.statItem, 
+          { 
+            backgroundColor: theme.colors.card,
+            borderWidth: 1,
+            borderColor: theme.colors.border + '50',
+            opacity: pressed && onPress ? 0.7 : 1
+          }
+        ]}
+      >
+        <View style={[styles.statIcon, { backgroundColor: color + '15' }]}>
+          <Ionicons name={icon} size={22} color={color} />
+        </View>
+        <View style={styles.statContent}>
+          <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
+          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
+        </View>
+      </Pressable>
     </Animated.View>
   );
 };
@@ -272,7 +288,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, marginTop: 4 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
   statItem: { 
-    width: (SCREEN_WIDTH - 44) / 2, 
+    width: '100%',
     padding: 16, 
     borderRadius: 28, 
     flexDirection: 'row', 

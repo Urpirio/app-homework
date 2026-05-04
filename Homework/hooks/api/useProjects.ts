@@ -57,6 +57,50 @@ export function useProjects() {
   });
 }
 
+/** Create a unit inside a project via POST /projects/{id}/units */
+export function useCreateUnit(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { name: string; description?: string; order?: number }) => {
+      const { data: unit } = await api.post(`/projects/${projectId}/units`, data);
+      return unit;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.units(projectId) });
+    },
+  });
+}
+
+/** Update a unit via PATCH /projects/units/{unitId} */
+export function useUpdateUnit(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; name?: string; description?: string; order?: number }) => {
+      const { data: unit } = await api.patch(`/projects/units/${id}`, data);
+      return unit;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.units(projectId) });
+    },
+  });
+}
+
+/** Delete a unit via DELETE /projects/units/{unitId} */
+export function useDeleteUnit(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (unitId: string) => {
+      await api.delete(`/projects/units/${unitId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.units(projectId) });
+    },
+  });
+}
+
 /** Fetch a single subject/project detail from GET /subjects/{id} */
 export function useSubject(id: string) {
   return useQuery({

@@ -12,10 +12,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const quickActions = [
+const quickActionsStudent = [
   { id: '2', label: 'Notas', icon: 'stats-chart-outline' as const, color: '#34C759', route: '/grades' },
   { id: '3', label: 'Calendario', icon: 'calendar-outline' as const, color: '#FF9500', route: '/calendar' },
   { id: '4', label: 'Biblioteca', icon: 'library-outline' as const, color: '#007AFF', route: '/library' },
+];
+
+const quickActionsTeacher = [
+  { id: '1', label: 'Dashboard', icon: 'grid-outline' as const, color: '#5856D6', route: '/teacher/dashboard' },
+  { id: '2', label: 'Materias', icon: 'journal-outline' as const, color: '#34C759', route: '/projects' },
+  { id: '3', label: 'Calendario', icon: 'calendar-outline' as const, color: '#FF9500', route: '/calendar' },
 ];
 
 function getDaysLabel(dueDate: string): string {
@@ -51,40 +57,59 @@ export default function HomeScreen() {
         return;
       }
 
+      const isTeacher = profile.role === 'TEACHER';
+
       const projectsRes = await api.get('/projects');
       const projects = projectsRes.data || [];
 
-      setStats({
-        pending: projects.reduce((acc: number, p: any) => acc + (p._count?.tasks || 0), 0),
-        subjects: projects.length,
-      });
+      if (isTeacher) {
+        // Teacher: collect submissions pending grading across all subjects
+        const allSubmissions: any[] = [];
+        for (const p of projects) {
+          for (const t of (p.tasks || [])) {
+            for (const s of (t.submissions || [])) {
+              if (s.status === 'SUBMITTED') {
+                allSubmissions.push({
+                  ...s,
+                  taskTitle: t.title,
+                  taskId: t.id,
+                  subject: p.name,
+                  subjectColor: p.color,
+                });
+              }
+            }
+          }
+        }
 
-      // Extract and flatten upcoming tasks — only pending, not overdue, with dueDate
-      const now = new Date();
-      const allTasks = projects.flatMap((p: any) =>
-        (p.tasks || []).map((t: any) => ({
-          ...t,
-          subject: p.name,
-          subjectColor: p.color,
-        }))
-      );
+        // Sort by most recent first
+        allSubmissions.sort((a: any, b: any) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
 
-      const sorted = allTasks
-        .filter((t: any) => {
-          // Must have a due date
-          if (!t.dueDate) return false;
-          const due = new Date(t.dueDate);
-          // Must not be completed by the backend status
-          if (t.status === 'DONE') return false;
-          // Must not already have a submission from this student
-          if (t.submissions && t.submissions.length > 0) return false;
-          // Must not be overdue
-          return due > now;
-        })
-        .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-        .slice(0, 5);
+        setStats({ pending: allSubmissions.length, subjects: projects.length });
+        setUpcomingTasks(allSubmissions.slice(0, 5));
+      } else {
+        // Student: original logic
+        setStats({
+          pending: projects.reduce((acc: number, p: any) => acc + (p._count?.tasks || 0), 0),
+          subjects: projects.length,
+        });
 
-      setUpcomingTasks(sorted);
+        const now = new Date();
+        const allTasks = projects.flatMap((p: any) =>
+          (p.tasks || []).map((t: any) => ({ ...t, subject: p.name, subjectColor: p.color }))
+        );
+        const sorted = allTasks
+          .filter((t: any) => {
+            if (!t.dueDate) return false;
+            if (t.status === 'DONE') return false;
+            if (t.submissions && t.submissions.length > 0) return false;
+            return new Date(t.dueDate) > now;
+          })
+          .sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+          .slice(0, 5);
+        setUpcomingTasks(sorted);
+      }
     } catch (error) {
       console.error('Error fetching home data:', error);
       setStats({ pending: 0, subjects: 0 });
@@ -116,6 +141,9 @@ export default function HomeScreen() {
     );
   }
 
+  const isTeacher = user?.role === 'TEACHER';
+  const quickActions = isTeacher ? quickActionsTeacher : quickActionsStudent;
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
       <ThemedView style={styles.container}>
@@ -127,13 +155,15 @@ export default function HomeScreen() {
         >
           <HomeHeader user={user} />
 
-          {/* Banner Consolidado */}
+          {/* Banner */}
           <Animated.View entering={FadeInDown.delay(100)}>
             <View style={[styles.bannerCard, { backgroundColor: theme.colors.primary }]}>  
               <View style={styles.bannerContent}>
                 <Text style={styles.bannerGreeting}>{getGreeting()}, {user?.fullName?.split(' ')[0]}</Text>
                 <Text style={styles.bannerSubtitle}>
-                  Tienes {stats.pending} tareas pendientes en {stats.subjects} materias activas.
+                  {isTeacher
+                    ? `${stats.subjects} materias activas · ${stats.pending} entregas por calificar`
+                    : `Tienes ${stats.pending} tareas pendientes en ${stats.subjects} materias activas.`}
                 </Text>
               </View>
               <View style={styles.bannerBadge}>
@@ -163,7 +193,9 @@ export default function HomeScreen() {
           {/* Próximas Entregas - El foco principal */}
           <Animated.View entering={FadeInDown.delay(400)} style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Tareas Próximas</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                {isTeacher ? 'Próximas Fechas Límite' : 'Tareas Próximas'}
+              </Text>
               <Pressable onPress={() => router.push('/projects')}>
                 <Text style={{ color: theme.colors.primary, fontWeight: '700', fontSize: 13 }}>Ver materias</Text>
               </Pressable>
@@ -172,9 +204,39 @@ export default function HomeScreen() {
             {upcomingTasks.length === 0 ? (
               <View style={[styles.taskCard, { backgroundColor: theme.colors.card }]}>
                 <Ionicons name="checkmark-circle-outline" size={20} color="#34C759" style={{ marginRight: 10 }} />
-                <Text style={[styles.taskSub, { color: theme.colors.textSecondary }]}>Sin tareas próximas. ¡Al día!</Text>
+                <Text style={[styles.taskSub, { color: theme.colors.textSecondary }]}>
+                  {isTeacher ? 'Sin entregas pendientes de calificar' : 'Sin tareas próximas. ¡Al día!'}
+                </Text>
               </View>
-            ) : upcomingTasks.map((task, index) => (
+            ) : isTeacher ? (
+              // Teacher: show recent submissions to grade
+              upcomingTasks.map((sub: any, index: number) => (
+                <Animated.View key={sub.id} entering={FadeInDown.delay(450 + index * 50)}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.taskCard,
+                      { backgroundColor: theme.colors.card, opacity: pressed ? 0.7 : 1 }
+                    ]}
+                    onPress={() => router.push({ pathname: '/tasks/[taskId]/submissions', params: { taskId: sub.taskId } } as any)}
+                  >
+                    <View style={[styles.taskPriorityDot, { backgroundColor: '#FF9500' }]} />
+                    <View style={styles.taskInfo}>
+                      <Text style={[styles.taskTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                        {sub.student?.fullName ?? 'Estudiante'}
+                      </Text>
+                      <Text style={[styles.taskSub, { color: theme.colors.textSecondary }]}>
+                        {sub.taskTitle} · {sub.subject}
+                      </Text>
+                    </View>
+                    <View style={[styles.dueBadge, { backgroundColor: '#FF9500' }]}>
+                      <Text style={styles.dueBadgeText}>Calificar</Text>
+                    </View>
+                  </Pressable>
+                </Animated.View>
+              ))
+            ) : (
+              // Student: show upcoming tasks
+              upcomingTasks.map((task: any, index: number) => (
               <Animated.View key={task.id} entering={FadeInDown.delay(450 + index * 50)}>
                 <Pressable
                   style={({ pressed }) => [
@@ -195,7 +257,8 @@ export default function HomeScreen() {
                   </View>
                 </Pressable>
               </Animated.View>
-            ))}
+            ))
+            )}
           </Animated.View>
 
         </ScrollView>

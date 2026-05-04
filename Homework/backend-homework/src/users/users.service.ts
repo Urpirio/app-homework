@@ -32,6 +32,50 @@ export class UsersService {
     });
   }
 
+  async findAll(options: { 
+    page?: number; 
+    limit?: number; 
+    role?: string; 
+    institutionId?: string; 
+    search?: string; 
+  } = {}) {
+    const { page = 1, limit = 20, role, institutionId, search } = options;
+
+    const where: Prisma.UserWhereInput = {};
+
+    if (role) {
+      where.role = role as any;
+    }
+
+    if (institutionId) {
+      where.institutionId = institutionId;
+    }
+
+    if (search) {
+      where.OR = [
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
+  }
+
   async getUserStats(userId: string) {
     const [ownedProjects, memberProjects, submissions] = await Promise.all([
       this.prisma.project.count({ where: { userId } }),

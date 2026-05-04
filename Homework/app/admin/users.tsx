@@ -58,7 +58,8 @@ function navigateToUserDetail(user: {
   role: string;
   institutionId?: string | null;
 }) {
-  const base = `/admin/institution/${user.institutionId}`;
+  const instId = user.institutionId || 'default';
+  const base = `/admin/institution/${instId}`;
   switch (user.role) {
     case 'STUDENT':
       router.push(`${base}/student/${user.id}` as any);
@@ -107,9 +108,10 @@ export default function UserDirectoryScreen() {
   const isSuperAdmin = profile?.role === UserRole.SUPER_ADMIN;
 
   // Determine the effective institution ID for filtering
-  const effectiveInstitutionId = isSuperAdmin
-    ? selectedInstitutionId || contextInstitutionId
-    : profile?.institutionId || null;
+  const effectiveInstitutionId = useMemo(() => {
+    if (isSuperAdmin) return selectedInstitutionId || contextInstitutionId;
+    return profile?.institutionId || null;
+  }, [isSuperAdmin, selectedInstitutionId, contextInstitutionId, profile]);
 
   // Build query params for useUsers hook
   const queryParams = useMemo(
@@ -123,7 +125,7 @@ export default function UserDirectoryScreen() {
 
   const {
     data,
-    isLoading,
+    isLoading: isUsersLoading,
     isError,
     error,
     fetchNextPage,
@@ -131,6 +133,8 @@ export default function UserDirectoryScreen() {
     isFetchingNextPage,
     refetch,
   } = useUsers(queryParams);
+
+  const isLoading = isUsersLoading || (profile === undefined && !isSuperAdmin);
 
   // Fetch institutions for SUPER_ADMIN dropdown
   const { data: institutions } = useInstitutions();

@@ -100,6 +100,9 @@ export function useGradeSubmission() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: submissionKeys.all });
+      // Also refresh task details and unit lists so status updates
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 }
