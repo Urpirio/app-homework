@@ -66,6 +66,8 @@ export default function TicketReviewScreen() {
   const [feedbackToggles, setFeedbackToggles] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [resolutionNote, setResolutionNote] = useState('');
+  const [showResolveModal, setShowResolveModal] = useState<string | null>(null); // holds target status
 
   const toggleFeedback = (key: string) => {
     setFeedbackToggles((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -149,10 +151,23 @@ export default function TicketReviewScreen() {
   }
 
   const handleChangeStatus = async (newStatus: string) => {
+    // For RESOLVED/CLOSED, require a resolution note
+    if ((newStatus === 'RESOLVED' || newStatus === 'CLOSED') && !resolutionNote.trim()) {
+      setShowResolveModal(newStatus);
+      return;
+    }
     setUpdatingStatus(true);
     try {
-      await updateTicket.mutateAsync({ ticketId: ticketId!, payload: { status: newStatus } });
+      await updateTicket.mutateAsync({
+        ticketId: ticketId!,
+        payload: {
+          status: newStatus,
+          ...(resolutionNote.trim() && { escalationNote: resolutionNote.trim() }),
+        },
+      });
       await refetch();
+      setShowResolveModal(null);
+      setResolutionNote('');
       Toast.show({ type: 'success', text1: 'Estado actualizado', text2: `Ticket marcado como ${STATUS_LABELS[newStatus] ?? newStatus}` });
     } catch {
       Toast.show({ type: 'error', text1: 'Error al actualizar estado' });
@@ -163,6 +178,9 @@ export default function TicketReviewScreen() {
 
   // If ticket is not resolved/closed yet, show ticket detail only (no rating form)
   const canReview = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
+  // Only the ticket creator can leave a review (not the assigned technician)
+  const isTicketCreator = profile?.id === ticket.createdById;
+  const isAssignedTech = profile?.id === ticket.assignedToId;
 
   if (!canReview) {
     return (
@@ -248,6 +266,67 @@ export default function TicketReviewScreen() {
                 </View>
               </Animated.View>
             )}
+
+            {/* Chat with ticket creator — only when IN_PROGRESS */}
+            {isSupport && ticket.status === 'IN_PROGRESS' && ticket.createdById && (
+              <Animated.View entering={FadeInDown.delay(450)}>
+                <Pressable
+                  onPress={() => router.push({
+                    pathname: '/chat/[id]',
+                    params: { id: ticket.createdById, name: (ticket as any).createdBy?.fullName ?? 'Usuario', type: 'user' },
+                  } as any)}
+                  style={[styles.chatBtn, { backgroundColor: theme.colors.primary }]}
+                >
+                  <Ionicons name="chatbubble-outline" size={18} color="#FFF" />
+                  <Text style={styles.chatBtnText}>Chatear con {(ticket as any).createdBy?.fullName?.split(' ')[0] ?? 'usuario'}</Text>
+                </Pressable>
+              </Animated.View>
+            )}
+
+            {/* Resolution note modal */}
+            {showResolveModal && (
+              <Animated.View entering={FadeInDown.delay(100)} style={[styles.resolveCard, { backgroundColor: theme.colors.card }]}>
+                <Text style={[styles.ticketSummaryLabel, { color: theme.colors.textSecondary }]}>
+                  Mensaje de resolución
+                </Text>
+                <Text style={[{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 4, marginBottom: 10 }]}>
+                  Describe la solución aplicada. El usuario verá este mensaje.
+                </Text>
+                <TextInput
+                  style={[styles.resolveInput, { color: theme.colors.text, backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                  placeholder="Ej: Se corrigió el acceso a las calificaciones..."
+                  placeholderTextColor={theme.colors.textSecondary}
+                  value={resolutionNote}
+                  onChangeText={setResolutionNote}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                  <Pressable
+                    onPress={() => { setShowResolveModal(null); setResolutionNote(''); }}
+                    style={[styles.statusBtn, { flex: 1, justifyContent: 'center', backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}
+                  >
+                    <Text style={[styles.statusBtnText, { color: theme.colors.textSecondary }]}>Cancelar</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleChangeStatus(showResolveModal)}
+                    disabled={!resolutionNote.trim() || updatingStatus}
+                    style={[styles.statusBtn, {
+                      flex: 2,
+                      justifyContent: 'center',
+                      backgroundColor: resolutionNote.trim() ? '#34C759' : theme.colors.border,
+                      borderColor: resolutionNote.trim() ? '#34C759' : theme.colors.border,
+                    }]}
+                  >
+                    <Text style={[styles.statusBtnText, { color: '#FFF' }]}>
+                      {updatingStatus ? 'Enviando...' : showResolveModal === 'RESOLVED' ? 'Resolver' : 'Cerrar'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </Animated.View>
+            )}
+
             <View style={{ height: 40 }} />
           </ScrollView>
         </ThemedView>
@@ -272,7 +351,7 @@ export default function TicketReviewScreen() {
           <View style={styles.alreadyReviewed}>
             <Ionicons name="checkmark-circle" size={64} color="#34C759" />
             <Text style={[styles.alreadyReviewedTitle, { color: theme.colors.text }]}>
-              Ya evaluaste este ticket
+              {isTicketCreator ? 'Ya evaluaste este ticket' : 'El usuario ya evaluó este ticket'}
             </Text>
             <View style={styles.starsRow}>
               {[1, 2, 3, 4, 5].map((star) => (
@@ -289,6 +368,33 @@ export default function TicketReviewScreen() {
                 "{ticket.review.comment}"
               </Text>
             )}
+          </View>
+        </ThemedView>
+      </SafeAreaView>
+    );
+  }
+
+  // Technician cannot review their own resolved tickets — show a "resolved" summary
+  if (isAssignedTech && !isTicketCreator) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+        <ThemedView style={styles.container}>
+          <BackgroundShapes />
+          <View style={styles.header}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+            </Pressable>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Ticket Resuelto</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <View style={styles.alreadyReviewed}>
+            <Ionicons name="checkmark-circle" size={64} color="#34C759" />
+            <Text style={[styles.alreadyReviewedTitle, { color: theme.colors.text }]}>
+              Ticket {ticket.status === 'CLOSED' ? 'cerrado' : 'resuelto'}
+            </Text>
+            <Text style={[styles.existingComment, { color: theme.colors.textSecondary }]}>
+              El usuario será notificado y podrá calificar el servicio.
+            </Text>
           </View>
         </ThemedView>
       </SafeAreaView>
@@ -570,4 +676,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusBtnText: { fontSize: 13, fontWeight: '700' },
+  chatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 14,
+    borderRadius: 16,
+    marginTop: 12,
+  },
+  chatBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  resolveCard: {
+    padding: 16,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  resolveInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    minHeight: 80,
+  },
 });

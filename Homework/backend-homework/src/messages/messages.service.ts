@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { TicketStatus } from '@prisma/client';
 import { CollaboratorsService } from '../collaborators/collaborators.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -9,10 +10,33 @@ export class MessagesService {
     private collaboratorsService: CollaboratorsService,
   ) {}
 
+  /**
+   * Check if two users can chat — either via active collaboration
+   * OR via an active support ticket (OPEN/IN_PROGRESS) where one is
+   * the assigned technician and the other is the ticket creator.
+   */
+  private async canChat(userId: string, otherUserId: string): Promise<boolean> {
+    // Normal collaboration check
+    const isCollab = await this.collaboratorsService.isActiveCollaboration(userId, otherUserId);
+    if (isCollab) return true;
+
+    // Support ticket exception: check if there's an active ticket between them
+    const activeTicket = await this.prisma.ticket.findFirst({
+      where: {
+        status: { in: [TicketStatus.OPEN, TicketStatus.IN_PROGRESS] },
+        OR: [
+          { assignedToId: userId, createdById: otherUserId },
+          { assignedToId: otherUserId, createdById: userId },
+        ],
+      },
+    });
+
+    return !!activeTicket;
+  }
+
   async getMessages(userId: string, collaboratorId: string, page = 1, limit = 50) {
-      // Validar que son colaboradores activos
-      const isActive = await this.collaboratorsService.isActiveCollaboration(userId, collaboratorId);
-      if (!isActive) {
+      const allowed = await this.canChat(userId, collaboratorId);
+      if (!allowed) {
         throw new ForbiddenException('No puedes chatear con este usuario. La solicitud aún no ha sido aceptada.');
       }
 
@@ -103,8 +127,8 @@ export class MessagesService {
     }
   }) {
     if (options.receiverId) {
-      const isActive = await this.collaboratorsService.isActiveCollaboration(senderId, options.receiverId);
-      if (!isActive) {
+      const allowed = await this.canChat(senderId, options.receiverId);
+      if (!allowed) {
         throw new ForbiddenException('No puedes enviar mensajes. La solicitud aún no ha sido aceptada.');
       }
     }
@@ -148,8 +172,8 @@ export class MessagesService {
   }
 
   async getSharedFiles(userId: string, collaboratorId: string, type?: 'image' | 'document') {
-    const isActive = await this.collaboratorsService.isActiveCollaboration(userId, collaboratorId);
-    if (!isActive) {
+    const allowed = await this.canChat(userId, collaboratorId);
+    if (!allowed) {
       throw new ForbiddenException('No son colaboradores activos');
     }
 
@@ -178,8 +202,8 @@ export class MessagesService {
   async clearChatHistory(userId: string, conversationId: string, type: 'user' | 'project') {
     // Validate access to the conversation
     if (type === 'user') {
-      const isActive = await this.collaboratorsService.isActiveCollaboration(userId, conversationId);
-      if (!isActive) {
+      const allowed = await this.canChat(userId, conversationId);
+      if (!allowed) {
         throw new ForbiddenException('No puedes gestionar este chat. La solicitud aún no ha sido aceptada.');
       }
     } else {
