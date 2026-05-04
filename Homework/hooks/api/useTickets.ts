@@ -89,7 +89,12 @@ export function useCreateTicket() {
 
   return useMutation({
     mutationFn: async (payload: CreateTicketPayload): Promise<Ticket> => {
-      const { data } = await api.post<Ticket>('/tickets', payload);
+      // Only send fields that exist in the Ticket schema
+      const { data } = await api.post<Ticket>('/tickets', {
+        title: payload.title,
+        description: payload.description,
+        category: payload.category,
+      });
       return data;
     },
     onSuccess: () => {
@@ -102,6 +107,21 @@ interface UpdateTicketPayload {
   status?: string;
   assignedToId?: string;
   escalationNote?: string;
+}
+
+export function useSelfAssignTicket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ticketId: string): Promise<Ticket> => {
+      const { data } = await api.patch<Ticket>(`/tickets/${ticketId}/self-assign`);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ticketKeys.all });
+      queryClient.setQueryData(ticketKeys.detail(data.id), data);
+    },
+  });
 }
 
 export function useUpdateTicket() {

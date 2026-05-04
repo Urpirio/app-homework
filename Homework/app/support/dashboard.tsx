@@ -1,182 +1,181 @@
-/**
- * Support Staff Dashboard
- *
- * Dashboard for support staff with KPIs, ticket queue,
- * escalated tickets, and performance chart.
- *
- * Validates: Requirements 15.9, 15.10, 15.11
- */
-
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ErrorState, SkeletonLoader } from '@/components/shared';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useProfile } from '@/hooks/api/useAuth';
 import { useTechnicianStats } from '@/hooks/api/useReviews';
-import { useUserTickets } from '@/hooks/api/useTickets';
+import { useSelfAssignTicket, useTickets, useUpdateTicket } from '@/hooks/api/useTickets';
 import { useTheme } from '@/hooks/useTheme';
-import type { Ticket, TicketStatus } from '@/types/ticket';
+import type { TicketStatus } from '@/types/ticket';
+import { onNewMessage } from '@/utils/socket';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-    Dimensions,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const STATUS_COLORS: Record<TicketStatus, string> = {
-  OPEN: '#007AFF',
-  IN_PROGRESS: '#FF9500',
-  RESOLVED: '#34C759',
-  CLOSED: '#8E8E93',
+  OPEN: '#007AFF', IN_PROGRESS: '#FF9500', RESOLVED: '#34C759', CLOSED: '#8E8E93',
 };
-
 const STATUS_LABELS: Record<TicketStatus, string> = {
-  OPEN: 'Abierto',
-  IN_PROGRESS: 'En Progreso',
-  RESOLVED: 'Resuelto',
-  CLOSED: 'Cerrado',
+  OPEN: 'Abierto', IN_PROGRESS: 'En Proceso', RESOLVED: 'Resuelto', CLOSED: 'Cerrado',
+};
+const CATEGORY_LABELS: Record<string, string> = {
+  Technical: 'Técnico', Academic: 'Académico', Account: 'Cuenta', General: 'General',
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  Low: '#34C759',
-  Medium: '#FF9500',
-  High: '#FF3B30',
-  Critical: '#AF52DE',
-};
+type TabType = 'queue' | 'unassigned' | 'resolved';
+type FilterStatus = 'ALL' | TicketStatus;
 
 export default function SupportDashboardScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const { data: profile } = useProfile();
-
-  const {
-    data: ticketsData,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useUserTickets(profile?.id ?? '');
-
+  const [activeTab, setActiveTab] = useState<TabType>('queue');
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('ALL');
+  const [filterCategory, setFilterCategory] = useState('ALL');
+  const [showFilters, setShowFilters] = useState(false);
+  const selfAssign = useSelfAssignTicket();
+  const updateTicket = useUpdateTicket();
   const { data: stats } = useTechnicianStats(profile?.id ?? '');
+  const { data: ticketsData, isLoading, isError, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useTickets();
+
+  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useFocusEffect(useCallback(() => {
+    const handler = () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(() => refetch(), 2000);
+    };
+    onNewMessage(handler);
+    return () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); };
+  }, [refetch]));
 
   const allTickets = useMemo(() => {
     if (!ticketsData?.pages) return [];
-    return ticketsData.pages.flatMap((page) => page.data);
+    return ticketsData.pages.flatMap((p: any) => Array.isArray(p) ? p : (p.data ?? [])).filter((t: any) => t?.id);
   }, [ticketsData]);
 
-  // KPI calculations
   const kpis = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const resolvedToday = allTickets.filter((t) => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const resolvedToday = allTickets.filter((t: any) => {
       if (t.status !== 'RESOLVED' && t.status !== 'CLOSED') return false;
-      const updated = new Date(t.updatedAt);
-      updated.setHours(0, 0, 0, 0);
-      return updated.getTime() === today.getTime();
+      const u = new Date(t.updatedAt); u.setHours(0, 0, 0, 0);
+      return u.getTime() === today.getTime();
     }).length;
-
-    const queueLength = allTickets.filter(
-      (t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS'
-    ).length;
-
-    // Avg response time: difference between createdAt and updatedAt for resolved tickets
-    const resolvedTickets = allTickets.filter(
-      (t) => t.status === 'RESOLVED' || t.status === 'CLOSED'
-    );
-    let avgResponseMinutes = 0;
-    if (resolvedTickets.length > 0) {
-      const totalMinutes = resolvedTickets.reduce((sum, t) => {
-        const created = new Date(t.createdAt).getTime();
-        const updated = new Date(t.updatedAt).getTime();
-        return sum + (updated - created) / (1000 * 60);
-      }, 0);
-      avgResponseMinutes = Math.round(totalMinutes / resolvedTickets.length);
-    }
-
-    const satisfactionRating = stats?.averageRating ?? 0;
-
-    return { resolvedToday, avgResponseMinutes, queueLength, satisfactionRating };
+    const queueLength = allTickets.filter((t: any) => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length;
+    const unassigned = allTickets.filter((t: any) => !t.assignedToId && t.status === 'OPEN').length;
+    const resolved = allTickets.filter((t: any) => t.status === 'RESOLVED' || t.status === 'CLOSED');
+    const avgMin = resolved.length > 0
+      ? Math.round(resolved.reduce((s: number, t: any) => s + (new Date(t.updatedAt).getTime() - new Date(t.createdAt).getTime()) / 60000, 0) / resolved.length)
+      : 0;
+    return { resolvedToday, queueLength, unassigned, avgMin, satisfaction: stats?.averageRating ?? 0 };
   }, [allTickets, stats]);
 
-  // Ticket queue: open and in-progress, sorted by priority then date
-  const ticketQueue = useMemo(() => {
-    const priorityOrder: Record<string, number> = {
-      Critical: 0,
-      High: 1,
-      Medium: 2,
-      Low: 3,
-    };
-    return allTickets
-      .filter((t) => t.status === 'OPEN' || t.status === 'IN_PROGRESS')
-      .sort((a, b) => {
-        const pa = priorityOrder[(a as any).priority] ?? 4;
-        const pb = priorityOrder[(b as any).priority] ?? 4;
-        if (pa !== pb) return pa - pb;
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      });
-  }, [allTickets]);
-
-  // Escalated tickets: high/critical priority
-  const escalatedTickets = useMemo(() => {
-    return allTickets.filter((t) => {
-      const priority = (t as any).priority;
-      return (
-        (t.status === 'OPEN' || t.status === 'IN_PROGRESS') &&
-        (priority === 'High' || priority === 'Critical')
-      );
-    });
-  }, [allTickets]);
-
-  // Performance: tickets resolved per day (last 7 days)
-  const performanceData = useMemo(() => {
-    const days: { label: string; count: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      date.setHours(0, 0, 0, 0);
-      const nextDay = new Date(date);
-      nextDay.setDate(nextDay.getDate() + 1);
-
-      const count = allTickets.filter((t) => {
-        if (t.status !== 'RESOLVED' && t.status !== 'CLOSED') return false;
-        const updated = new Date(t.updatedAt).getTime();
-        return updated >= date.getTime() && updated < nextDay.getTime();
-      }).length;
-
-      days.push({
-        label: date.toLocaleDateString('es', { weekday: 'short' }),
-        count,
-      });
+  const filteredTickets = useMemo(() => {
+    let base: any[] = activeTab === 'queue'
+      ? allTickets.filter((t: any) => t.status === 'OPEN' || t.status === 'IN_PROGRESS')
+      : activeTab === 'unassigned'
+        ? allTickets.filter((t: any) => !t.assignedToId && t.status === 'OPEN')
+        : allTickets.filter((t: any) => t.status === 'RESOLVED' || t.status === 'CLOSED');
+    if (filterStatus !== 'ALL') base = base.filter((t: any) => t.status === filterStatus);
+    if (filterCategory !== 'ALL') base = base.filter((t: any) => t.category === filterCategory);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      base = base.filter((t: any) => t.title?.toLowerCase().includes(q) || t.id?.toLowerCase().includes(q));
     }
-    return days;
-  }, [allTickets]);
+    return base;
+  }, [allTickets, activeTab, filterStatus, filterCategory, search]);
 
-  const maxPerformance = Math.max(...performanceData.map((d) => d.count), 1);
+  const handleSelfAssign = async (ticketId: string) => {
+    try {
+      await selfAssign.mutateAsync(ticketId);
+      Toast.show({ type: 'success', text1: 'Ticket asignado', text2: 'El ticket fue asignado a ti.' });
+    } catch { Toast.show({ type: 'error', text1: 'Error al asignar ticket' }); }
+  };
 
-  const horizontalPadding = SCREEN_WIDTH > 400 ? 24 : 16;
+  const handleQuickStatus = async (ticketId: string, status: string) => {
+    try {
+      await updateTicket.mutateAsync({ ticketId, payload: { status } });
+      Toast.show({ type: 'success', text1: 'Estado actualizado' });
+    } catch { Toast.show({ type: 'error', text1: 'Error al actualizar' }); }
+  };
+
+  const renderTicket = ({ item: ticket, index }: { item: any; index: number }) => {
+    const isAssignedToMe = ticket.assignedToId === profile?.id;
+    const isUnassigned = !ticket.assignedToId;
+    const statusColor = STATUS_COLORS[ticket.status as TicketStatus] ?? '#8E8E93';
+    return (
+      <Animated.View entering={FadeInDown.delay(index * 40)}>
+        <Pressable
+          onPress={() => router.push(`/support/review/${ticket.id}` as any)}
+          style={({ pressed }) => [styles.ticketCard, { backgroundColor: theme.colors.card, borderLeftColor: statusColor, opacity: pressed ? 0.8 : 1 }]}
+        >
+          <View style={styles.ticketTop}>
+            <Text style={[styles.ticketId, { color: theme.colors.textSecondary }]}>#{ticket.id.slice(0, 8).toUpperCase()}</Text>
+            <View style={[styles.statusPill, { backgroundColor: statusColor + '20' }]}>
+              <Text style={[styles.statusPillText, { color: statusColor }]}>{STATUS_LABELS[ticket.status as TicketStatus] ?? ticket.status}</Text>
+            </View>
+          </View>
+          <Text style={[styles.ticketTitle, { color: theme.colors.text }]} numberOfLines={2}>{ticket.title}</Text>
+          <View style={styles.ticketMeta}>
+            <View style={[styles.categoryPill, { backgroundColor: theme.colors.primaryLight }]}>
+              <Text style={[styles.categoryText, { color: theme.colors.primary }]}>{CATEGORY_LABELS[ticket.category] ?? ticket.category}</Text>
+            </View>
+            <Text style={[styles.ticketDate, { color: theme.colors.textSecondary }]}>
+              {new Date(ticket.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+            </Text>
+          </View>
+          {ticket.createdBy?.fullName && (
+            <Text style={[styles.createdBy, { color: theme.colors.textSecondary }]}>De: {ticket.createdBy.fullName}</Text>
+          )}
+          <View style={styles.ticketActions}>
+            {isUnassigned && (
+              <Pressable onPress={() => handleSelfAssign(ticket.id)} style={[styles.actionBtn, { backgroundColor: theme.colors.primary }]}>
+                <Ionicons name="person-add-outline" size={13} color="#FFF" />
+                <Text style={styles.actionBtnText}>Asignarme</Text>
+              </Pressable>
+            )}
+            {isAssignedToMe && ticket.status === 'OPEN' && (
+              <Pressable onPress={() => handleQuickStatus(ticket.id, 'IN_PROGRESS')} style={[styles.actionBtn, { backgroundColor: '#FF9500' }]}>
+                <Ionicons name="play-outline" size={13} color="#FFF" />
+                <Text style={styles.actionBtnText}>Iniciar</Text>
+              </Pressable>
+            )}
+            {isAssignedToMe && ticket.status === 'IN_PROGRESS' && (
+              <Pressable onPress={() => handleQuickStatus(ticket.id, 'RESOLVED')} style={[styles.actionBtn, { backgroundColor: '#34C759' }]}>
+                <Ionicons name="checkmark-outline" size={13} color="#FFF" />
+                <Text style={styles.actionBtnText}>Resolver</Text>
+              </Pressable>
+            )}
+            <Pressable onPress={() => router.push(`/support/review/${ticket.id}` as any)} style={[styles.actionBtn, { backgroundColor: theme.colors.background, borderWidth: 1, borderColor: theme.colors.border }]}>
+              <Ionicons name="eye-outline" size={13} color={theme.colors.text} />
+              <Text style={[styles.actionBtnText, { color: theme.colors.text }]}>Ver</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Animated.View>
+    );
+  };
 
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
         <ThemedView style={styles.container}>
           <BackgroundShapes />
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-              Panel de Soporte
-            </Text>
-          </View>
-          <View style={{ padding: 20 }}>
-            <SkeletonLoader rows={6} variant="card" />
-          </View>
+          <View style={{ padding: 20 }}><SkeletonLoader rows={5} variant="card" /></View>
         </ThemedView>
       </SafeAreaView>
     );
@@ -187,11 +186,6 @@ export default function SupportDashboardScreen() {
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
         <ThemedView style={styles.container}>
           <BackgroundShapes />
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-              Panel de Soporte
-            </Text>
-          </View>
           <ErrorState error={error as any} onRetry={() => refetch()} />
         </ThemedView>
       </SafeAreaView>
@@ -203,156 +197,122 @@ export default function SupportDashboardScreen() {
       <ThemedView style={styles.container}>
         <BackgroundShapes />
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: horizontalPadding, paddingBottom: 40 }}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-                Panel de Soporte
-              </Text>
-              <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
-                {profile?.fullName ?? 'Soporte'}
-              </Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable onPress={() => router.push('/profile')} style={styles.avatarBtn}>
+            <View style={[styles.avatarCircle, { backgroundColor: theme.colors.primaryLight }]}>
+              <Text style={[styles.avatarInitial, { color: theme.colors.primary }]}>{profile?.fullName?.charAt(0) ?? 'S'}</Text>
             </View>
-            <Pressable
-              onPress={() => router.push('/support/create-ticket' as any)}
-              style={[styles.newTicketBtn, { backgroundColor: theme.colors.primary }]}
-            >
-              <Ionicons name="add" size={20} color="#FFF" />
-            </Pressable>
+          </Pressable>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Panel de Soporte</Text>
+            <Text style={[styles.headerSub, { color: theme.colors.textSecondary }]}>{profile?.fullName}</Text>
           </View>
+          <Pressable onPress={() => refetch()} style={[styles.iconBtn, { backgroundColor: theme.colors.card }]}>
+            <Ionicons name="refresh-outline" size={20} color={theme.colors.primary} />
+          </Pressable>
+        </View>
 
-          {/* KPI Row */}
-          <Animated.View entering={FadeInDown.duration(400)} style={styles.kpiRow}>
-            <KPITile
-              icon="checkmark-done"
-              label="Resueltos Hoy"
-              value={String(kpis.resolvedToday)}
-              color="#34C759"
-            />
-            <KPITile
-              icon="timer-outline"
-              label="Tiempo Resp."
-              value={kpis.avgResponseMinutes > 60
-                ? `${Math.round(kpis.avgResponseMinutes / 60)}h`
-                : `${kpis.avgResponseMinutes}m`}
-              color="#FF9500"
-            />
-            <KPITile
-              icon="layers-outline"
-              label="En Cola"
-              value={String(kpis.queueLength)}
-              color="#007AFF"
-            />
-            <KPITile
-              icon="star"
-              label="Satisfacción"
-              value={kpis.satisfactionRating > 0 ? kpis.satisfactionRating.toFixed(1) : '—'}
-              color="#FFCC00"
-            />
-          </Animated.View>
+        {/* KPIs */}
+        <View style={styles.kpiRow}>
+          <KPITile icon="checkmark-done" label="Hoy" value={String(kpis.resolvedToday)} color="#34C759" theme={theme} />
+          <KPITile icon="timer-outline" label="Resp." value={kpis.avgMin > 60 ? `${Math.round(kpis.avgMin / 60)}h` : `${kpis.avgMin}m`} color="#FF9500" theme={theme} />
+          <KPITile icon="layers-outline" label="Cola" value={String(kpis.queueLength)} color="#007AFF" theme={theme} />
+          <KPITile icon="alert-circle-outline" label="Sin asignar" value={String(kpis.unassigned)} color="#FF3B30" theme={theme} />
+          <KPITile icon="star" label="Rating" value={kpis.satisfaction > 0 ? kpis.satisfaction.toFixed(1) : '—'} color="#FFCC00" theme={theme} />
+        </View>
 
-          {/* Ticket Queue */}
-          <Animated.View entering={FadeInDown.duration(400).delay(100)}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Cola de Tickets ({ticketQueue.length})
-            </Text>
-            {ticketQueue.length === 0 ? (
-              <View style={[styles.emptyCard, { backgroundColor: theme.colors.card }]}>
-                <Ionicons name="checkmark-circle-outline" size={32} color={theme.colors.textSecondary} />
-                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                  No hay tickets pendientes
-                </Text>
-              </View>
-            ) : (
-              ticketQueue.slice(0, 10).map((ticket) => (
-                <TicketRow
-                  key={ticket.id}
-                  ticket={ticket}
-                  onPress={() =>
-                    router.push(`/admin/user/${profile?.id}/ticket/${ticket.id}` as any)
-                  }
-                />
-              ))
+        {/* Search + Filter */}
+        <View style={styles.searchRow}>
+          <View style={[styles.searchBox, { backgroundColor: theme.colors.card }]}>
+            <Ionicons name="search-outline" size={16} color={theme.colors.textSecondary} />
+            <TextInput
+              style={[styles.searchInput, { color: theme.colors.text }]}
+              placeholder="Buscar ticket..."
+              placeholderTextColor={theme.colors.textSecondary}
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <Pressable onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
+              </Pressable>
             )}
-          </Animated.View>
+          </View>
+          <Pressable
+            onPress={() => setShowFilters(v => !v)}
+            style={[styles.filterBtn, { backgroundColor: showFilters ? theme.colors.primary : theme.colors.card }]}
+          >
+            <Ionicons name="options-outline" size={18} color={showFilters ? '#FFF' : theme.colors.text} />
+          </Pressable>
+        </View>
 
-          {/* Escalated Tickets */}
-          {escalatedTickets.length > 0 && (
-            <Animated.View entering={FadeInDown.duration(400).delay(200)}>
-              <Text style={[styles.sectionTitle, { color: '#FF3B30' }]}>
-                <Ionicons name="warning" size={18} color="#FF3B30" /> Tickets Escalados (
-                {escalatedTickets.length})
+        {showFilters && (
+          <Animated.View entering={FadeInDown.duration(200)} style={styles.filterRow}>
+            {(['ALL', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const).map(s => (
+              <Pressable key={s} onPress={() => setFilterStatus(s)} style={[styles.chip, { backgroundColor: filterStatus === s ? theme.colors.primary : theme.colors.card }]}>
+                <Text style={[styles.chipText, { color: filterStatus === s ? '#FFF' : theme.colors.textSecondary }]}>
+                  {s === 'ALL' ? 'Todos' : STATUS_LABELS[s as TicketStatus]}
+                </Text>
+              </Pressable>
+            ))}
+            {(['ALL', 'Technical', 'Academic', 'Account', 'General'] as const).map(c => (
+              <Pressable key={c} onPress={() => setFilterCategory(c)} style={[styles.chip, { backgroundColor: filterCategory === c ? theme.colors.primary + 'CC' : theme.colors.card }]}>
+                <Text style={[styles.chipText, { color: filterCategory === c ? '#FFF' : theme.colors.textSecondary }]}>
+                  {c === 'ALL' ? 'Todas' : CATEGORY_LABELS[c]}
+                </Text>
+              </Pressable>
+            ))}
+          </Animated.View>
+        )}
+
+        {/* Tabs */}
+        <View style={styles.tabRow}>
+          {([
+            { key: 'queue' as TabType, label: 'Cola', count: kpis.queueLength },
+            { key: 'unassigned' as TabType, label: 'Sin asignar', count: kpis.unassigned },
+            { key: 'resolved' as TabType, label: 'Resueltos', count: null },
+          ]).map(tab => (
+            <Pressable key={tab.key} onPress={() => setActiveTab(tab.key)} style={[styles.tab, activeTab === tab.key && { borderBottomColor: theme.colors.primary, borderBottomWidth: 2 }]}>
+              <Text style={[styles.tabText, { color: activeTab === tab.key ? theme.colors.primary : theme.colors.textSecondary }]}>{tab.label}</Text>
+              {tab.count !== null && tab.count > 0 && (
+                <View style={[styles.tabBadge, { backgroundColor: tab.key === 'unassigned' ? '#FF3B30' : theme.colors.primary }]}>
+                  <Text style={styles.tabBadgeText}>{tab.count}</Text>
+                </View>
+              )}
+            </Pressable>
+          ))}
+        </View>
+
+        {/* List */}
+        <FlatList
+          data={filteredTickets}
+          keyExtractor={(item: any) => item.id}
+          renderItem={renderTicket}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          onEndReached={() => hasNextPage && !isFetchingNextPage && fetchNextPage()}
+          onEndReachedThreshold={0.4}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Ionicons name="checkmark-circle-outline" size={40} color={theme.colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                {search ? 'Sin resultados' : 'No hay tickets aquí'}
               </Text>
-              {escalatedTickets.map((ticket) => (
-                <TicketRow
-                  key={ticket.id}
-                  ticket={ticket}
-                  escalated
-                  onPress={() =>
-                    router.push(`/admin/user/${profile?.id}/ticket/${ticket.id}` as any)
-                  }
-                />
-              ))}
-            </Animated.View>
-          )}
-
-          {/* Performance Chart */}
-          <Animated.View entering={FadeInDown.duration(400).delay(300)}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Rendimiento (últimos 7 días)
-            </Text>
-            <View style={[styles.chartCard, { backgroundColor: theme.colors.card }]}>
-              <View style={styles.chartBars}>
-                {performanceData.map((day, i) => (
-                  <View key={i} style={styles.chartBarCol}>
-                    <View style={styles.chartBarWrapper}>
-                      <View
-                        style={[
-                          styles.chartBar,
-                          {
-                            height: `${(day.count / maxPerformance) * 100}%`,
-                            backgroundColor: theme.colors.primary,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={[styles.chartLabel, { color: theme.colors.textSecondary }]}>
-                      {day.label}
-                    </Text>
-                    <Text style={[styles.chartValue, { color: theme.colors.text }]}>
-                      {day.count}
-                    </Text>
-                  </View>
-                ))}
-              </View>
             </View>
-          </Animated.View>
-        </ScrollView>
+          }
+          ListFooterComponent={isFetchingNextPage ? <ActivityIndicator color={theme.colors.primary} style={{ paddingVertical: 16 }} /> : null}
+        />
       </ThemedView>
     </SafeAreaView>
   );
 }
 
-function KPITile({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value: string;
-  color: string;
-}) {
-  const { theme } = useTheme();
+function KPITile({ icon, label, value, color, theme }: any) {
   return (
     <View style={[styles.kpiTile, { backgroundColor: theme.colors.card }]}>
-      <View style={[styles.kpiIcon, { backgroundColor: color + '15' }]}>
-        <Ionicons name={icon} size={18} color={color} />
+      <View style={[styles.kpiIcon, { backgroundColor: color + '18' }]}>
+        <Ionicons name={icon} size={15} color={color} />
       </View>
       <Text style={[styles.kpiValue, { color: theme.colors.text }]}>{value}</Text>
       <Text style={[styles.kpiLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
@@ -360,173 +320,48 @@ function KPITile({
   );
 }
 
-function TicketRow({
-  ticket,
-  escalated,
-  onPress,
-}: {
-  ticket: Ticket;
-  escalated?: boolean;
-  onPress: () => void;
-}) {
-  const { theme } = useTheme();
-  const statusColor = STATUS_COLORS[ticket.status];
-  const priority = (ticket as any).priority as string | undefined;
-  const priorityColor = priority ? PRIORITY_COLORS[priority] || '#8E8E93' : '#8E8E93';
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.ticketRow,
-        {
-          backgroundColor: theme.colors.card,
-          borderLeftColor: escalated ? '#FF3B30' : statusColor,
-          opacity: pressed ? 0.8 : 1,
-        },
-      ]}
-    >
-      <View style={styles.ticketRowContent}>
-        <View style={styles.ticketRowTop}>
-          <Text style={[styles.ticketRowId, { color: theme.colors.textSecondary }]}>
-            #{ticket.id.slice(0, 8).toUpperCase()}
-          </Text>
-          {priority && (
-            <View style={[styles.priorityBadge, { backgroundColor: priorityColor + '15' }]}>
-              <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
-              <Text style={[styles.priorityText, { color: priorityColor }]}>{priority}</Text>
-            </View>
-          )}
-        </View>
-        <Text style={[styles.ticketRowTitle, { color: theme.colors.text }]} numberOfLines={1}>
-          {ticket.title}
-        </Text>
-        <View style={styles.ticketRowBottom}>
-          <Text style={[styles.ticketRowCategory, { color: theme.colors.primary }]}>
-            {ticket.category}
-          </Text>
-          <Text style={[styles.ticketRowDate, { color: theme.colors.textSecondary }]}>
-            {new Date(ticket.createdAt).toLocaleDateString()}
-          </Text>
-        </View>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={theme.colors.border} />
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  headerTitle: { fontSize: 24, fontWeight: '800' },
-  headerSubtitle: { fontSize: 14, fontWeight: '600', marginTop: 2 },
-  newTicketBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 24,
-  },
-  kpiTile: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 20,
-    alignItems: 'center',
-  },
-  kpiIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  kpiValue: { fontSize: 20, fontWeight: '900' },
-  kpiLabel: { fontSize: 10, fontWeight: '700', marginTop: 4, textAlign: 'center' },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 14,
-    marginTop: 8,
-  },
-  emptyCard: {
-    padding: 24,
-    borderRadius: 20,
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  emptyText: { fontSize: 14, fontWeight: '600' },
-  ticketRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 18,
-    marginBottom: 10,
-    borderLeftWidth: 4,
-  },
-  ticketRowContent: { flex: 1 },
-  ticketRowTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  ticketRowId: { fontSize: 11, fontWeight: '700' },
-  ticketRowTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
-  ticketRowBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  ticketRowCategory: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
-  ticketRowDate: { fontSize: 11 },
-  priorityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    gap: 4,
-  },
-  priorityDot: { width: 6, height: 6, borderRadius: 3 },
-  priorityText: { fontSize: 10, fontWeight: '800' },
-  chartCard: {
-    padding: 20,
-    borderRadius: 24,
-    marginBottom: 16,
-  },
-  chartBars: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    height: 120,
-  },
-  chartBarCol: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  chartBarWrapper: {
-    width: 24,
-    height: 80,
-    justifyContent: 'flex-end',
-  },
-  chartBar: {
-    width: '100%',
-    borderRadius: 6,
-    minHeight: 4,
-  },
-  chartLabel: { fontSize: 10, fontWeight: '700', marginTop: 6 },
-  chartValue: { fontSize: 11, fontWeight: '800', marginTop: 2 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 },
+  headerTitle: { fontSize: 18, fontWeight: '900' },
+  headerSub: { fontSize: 12, fontWeight: '600', marginTop: 1 },
+  avatarBtn: {},
+  avatarCircle: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  avatarInitial: { fontSize: 16, fontWeight: '900' },
+  iconBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  kpiRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, marginBottom: 12 },
+  kpiTile: { flex: 1, padding: 10, borderRadius: 14, alignItems: 'center' },
+  kpiIcon: { width: 28, height: 28, borderRadius: 9, justifyContent: 'center', alignItems: 'center', marginBottom: 5 },
+  kpiValue: { fontSize: 15, fontWeight: '900' },
+  kpiLabel: { fontSize: 9, fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  searchRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 8 },
+  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, gap: 8 },
+  searchInput: { flex: 1, fontSize: 14 },
+  filterBtn: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 20, marginBottom: 8 },
+  chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  chipText: { fontSize: 12, fontWeight: '700' },
+  tabRow: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 10, gap: 4 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 5 },
+  tabText: { fontSize: 12, fontWeight: '700' },
+  tabBadge: { width: 17, height: 17, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+  tabBadgeText: { color: '#FFF', fontSize: 9, fontWeight: '800' },
+  listContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  ticketCard: { borderRadius: 18, padding: 14, marginBottom: 10, borderLeftWidth: 4 },
+  ticketTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  ticketId: { fontSize: 11, fontWeight: '700' },
+  statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  statusPillText: { fontSize: 11, fontWeight: '800' },
+  ticketTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8, lineHeight: 20 },
+  ticketMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  categoryPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  categoryText: { fontSize: 11, fontWeight: '700' },
+  ticketDate: { fontSize: 11 },
+  createdBy: { fontSize: 11, marginBottom: 10 },
+  ticketActions: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  actionBtnText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  empty: { alignItems: 'center', paddingVertical: 40, gap: 10 },
+  emptyText: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
 });

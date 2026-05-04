@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Role, TicketStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, Role, TicketStatus } from '@prisma/client';
 
 @Injectable()
 export class TicketsService {
@@ -15,7 +15,25 @@ export class TicketsService {
     });
   }
 
-  async findAllForUser(userId: string) {
+  async findAllForUser(userId: string, role?: string) {
+    // SUPPORT staff sees: tickets assigned to them + unassigned OPEN tickets
+    if (role === 'SUPPORT') {
+      return this.prisma.ticket.findMany({
+        where: {
+          OR: [
+            { assignedToId: userId },
+            { assignedToId: null, status: TicketStatus.OPEN },
+          ],
+        },
+        include: {
+          createdBy: { select: { fullName: true, avatarUrl: true } },
+          assignedTo: { select: { fullName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    // Other roles: only their own tickets
     return this.prisma.ticket.findMany({
       where: {
         OR: [
@@ -27,6 +45,7 @@ export class TicketsService {
         createdBy: { select: { fullName: true } },
         assignedTo: { select: { fullName: true } },
       },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
