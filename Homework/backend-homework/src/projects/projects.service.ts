@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { NotificationType } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationType, Role } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ProjectsService {
@@ -37,7 +37,15 @@ export class ProjectsService {
       where: { userId },
       include: {
         _count: { select: { tasks: true } },
-        tasks: true,
+        tasks: {
+          include: {
+            submissions: {
+              where: { studentId: userId },
+              select: { id: true, status: true },
+              take: 1,
+            },
+          },
+        },
         members: { include: { user: { select: { id: true, fullName: true, avatarUrl: true } } } },
       },
       orderBy: { updatedAt: 'desc' },
@@ -51,7 +59,15 @@ export class ProjectsService {
       },
       include: {
         _count: { select: { tasks: true } },
-        tasks: true,
+        tasks: {
+          include: {
+            submissions: {
+              where: { studentId: userId },
+              select: { id: true, status: true },
+              take: 1,
+            },
+          },
+        },
         members: { include: { user: { select: { id: true, fullName: true, avatarUrl: true } } } },
         user: { select: { id: true, fullName: true } },
       },
