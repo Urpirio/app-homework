@@ -4,6 +4,9 @@
  * Handles chat history with useInfiniteQuery (50 per page, reverse chronological),
  * message sending, and chat history management.
  *
+ * NOTE: The backend returns a plain array (not paginated) for messages.
+ * We wrap it in a consistent shape so the infinite query works correctly.
+ *
  * Validates: Requirements 10.1, 10.2, 4.9
  */
 
@@ -24,11 +27,12 @@ export const messageKeys = {
     ['messages', 'project', projectId] as const,
 };
 
-interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
+// The backend returns a plain array — we normalize it into this shape
+interface MessagePage {
+  data: ChatMessage[];
   page: number;
   limit: number;
+  total: number;
 }
 
 interface SendMessagePayload {
@@ -43,18 +47,41 @@ export function useConversation(id: string, type: 'user' | 'project') {
 
   return useInfiniteQuery({
     queryKey: messageKeys.conversation(id, type),
-    queryFn: async ({ pageParam = 1 }): Promise<PaginatedResponse<ChatMessage>> => {
-      const { data } = await api.get<PaginatedResponse<ChatMessage>>(endpoint, {
+    queryFn: async ({ pageParam = 1 }): Promise<MessagePage> => {
+      const { data } = await api.get(endpoint, {
         params: { page: pageParam, limit: 50 },
       });
-      return data;
+
+      // Backend may return a plain array or a paginated object
+      if (Array.isArray(data)) {
+        return {
+          data: data as ChatMessage[],
+          page: pageParam as number,
+          limit: 50,
+          // If it's a plain array, assume no more pages
+          total: (data as ChatMessage[]).length,
+        };
+      }
+
+      // Already paginated shape
+      return {
+        data: data.data ?? [],
+        page: data.page ?? (pageParam as number),
+        limit: data.limit ?? 50,
+        total: data.total ?? (data.data?.length ?? 0),
+      };
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
+      // Only paginate if the backend supports it (total > items fetched so far)
+      if (lastPage.total <= lastPage.limit) return undefined;
       const nextPage = lastPage.page + 1;
       return nextPage * lastPage.limit < lastPage.total ? nextPage : undefined;
     },
     enabled: !!id,
+    // Keep data fresh — refetch when window regains focus
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -76,6 +103,7 @@ export function useSendMessage() {
       return data;
     },
     onSuccess: (_data, variables) => {
+      // Refetch the conversation to get the latest messages from the server
       queryClient.invalidateQueries({
         queryKey: messageKeys.conversation(variables.targetId, variables.type),
       });

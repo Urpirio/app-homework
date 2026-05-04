@@ -74,6 +74,10 @@ export function useTask(taskId: string) {
       return data;
     },
     enabled: !!taskId,
+    // Always refetch on mount so submission status is never stale
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -112,6 +116,10 @@ export function useUnitTasks(unitId: string) {
       return nextPage * lastPage.limit < lastPage.total ? nextPage : undefined;
     },
     enabled: !!unitId,
+    // Always refetch so submission status stays current after delivering a task
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 }
 

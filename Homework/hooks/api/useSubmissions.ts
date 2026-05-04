@@ -67,9 +67,18 @@ export function useCreateSubmission() {
       return data;
     },
     onSuccess: (_data, variables) => {
+      // Invalidate the task detail so submission status updates immediately
+      queryClient.invalidateQueries({
+        queryKey: ['tasks', 'detail', variables.taskId],
+      });
+      // Invalidate submissions list for this task
       queryClient.invalidateQueries({
         queryKey: submissionKeys.byTask(variables.taskId),
       });
+      // Invalidate ALL unit task lists so the status badge updates in the list
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'unit'] });
+      // Invalidate all projects/units so progress percentages recalculate
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 }

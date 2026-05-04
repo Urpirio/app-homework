@@ -4,51 +4,41 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
-import { useUnitTasks } from '@/hooks/api/useTasks';
+import { useUnitTasksFromProject } from '@/hooks/api/useProjects';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import React, { useCallback } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function UnitTasksScreen() {
   const { id, unitId, unitName } = useLocalSearchParams();
   const { theme } = useTheme();
 
+  const projectId = typeof id === 'string' ? id : Array.isArray(id) ? id[0] : '';
   const unitIdStr = typeof unitId === 'string' ? unitId : Array.isArray(unitId) ? unitId[0] : '';
 
   const {
-    data,
+    data: tasks,
     isLoading,
     isError,
     error,
     refetch,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useUnitTasks(unitIdStr);
+  } = useUnitTasksFromProject(projectId, unitIdStr);
 
-  const tasks = useMemo(() => {
-    if (!data?.pages) return [];
-    return data.pages.flatMap((page) => page.data);
-  }, [data]);
-
-  const handleLoadMore = () => {
-    if (hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  };
+  // Refetch when returning from task detail (e.g. after submitting)
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   if (isLoading) {
     return (
@@ -102,7 +92,7 @@ export default function UnitTasksScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
       <ThemedView style={styles.container}>
         <BackgroundShapes />
-        
+
         <View style={{ flex: 1, paddingHorizontal: 20 }}>
           <View style={styles.header}>
             <Pressable onPress={() => router.back()} style={styles.backBtn}>
@@ -115,16 +105,14 @@ export default function UnitTasksScreen() {
           </View>
 
           <FlatList
-            data={tasks}
+            data={tasks ?? []}
             keyExtractor={item => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 40, flexGrow: 1 }}
-            onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.5}
             renderItem={({ item, index }) => (
-              <TaskItem 
-                task={item} 
-                index={index} 
+              <TaskItem
+                task={item}
+                index={index}
                 onPress={() => router.push(`/tasks/${item.id}`)}
               />
             )}
@@ -134,11 +122,6 @@ export default function UnitTasksScreen() {
                 title="Sin tareas"
                 message="No hay tareas en esta unidad todavía."
               />
-            }
-            ListFooterComponent={
-              isFetchingNextPage ? (
-                <ActivityIndicator size="small" color={theme.colors.primary} style={{ paddingVertical: 16 }} />
-              ) : null
             }
           />
         </View>

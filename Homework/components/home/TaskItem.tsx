@@ -2,7 +2,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { Task } from '@/types/project';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInLeft } from 'react-native-reanimated';
 
 interface TaskItemProps {
@@ -15,11 +15,20 @@ interface TaskItemProps {
 export const TaskItem = ({ task, index, onPress, onLongPress }: TaskItemProps) => {
   const { theme } = useTheme();
 
-  const isDone = task.status?.toLowerCase() === 'done';
-  const isInProgress = task.status?.toLowerCase() === 'in_progress' || task.status?.toLowerCase() === 'in-progress';
+  // A student's task is "done" if they have a submission, regardless of task.status
+  const mySubmission = (task as any)?.mySubmission;
+  const hasSubmission = !!mySubmission;
+  const isGraded = mySubmission?.status === 'GRADED' || mySubmission?.status === 'RETURNED';
+
+  const isDone = hasSubmission || task.status?.toLowerCase() === 'done';
+  const isInProgress = !hasSubmission && (
+    task.status?.toLowerCase() === 'in_progress' ||
+    task.status?.toLowerCase() === 'in-progress'
+  );
 
   const getStatusColor = () => {
-    if (isDone) return theme.colors.success;
+    if (isGraded) return '#34C759';
+    if (isDone) return theme.colors.primary;
     if (isInProgress) return theme.colors.primary;
     return theme.colors.textSecondary;
   };
@@ -36,7 +45,8 @@ export const TaskItem = ({ task, index, onPress, onLongPress }: TaskItemProps) =
   };
 
   const getStatusLabel = () => {
-    if (isDone) return 'Entregada';
+    if (isGraded) return 'Calificada';
+    if (hasSubmission) return 'Entregada';
     if (isInProgress) return 'En curso';
     return 'Pendiente';
   };

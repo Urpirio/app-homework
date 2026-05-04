@@ -64,10 +64,12 @@ export function connect(token: string): void {
   // Invalidate React Query caches on real-time events
   socket.on('newMessage', () => {
     queryClient.invalidateQueries({ queryKey: messageKeys.all });
+    queryClient.refetchQueries({ queryKey: messageKeys.all });
   });
 
   socket.on('newProjectMessage', () => {
     queryClient.invalidateQueries({ queryKey: messageKeys.all });
+    queryClient.refetchQueries({ queryKey: messageKeys.all });
   });
 
   socket.on('newNotification', () => {

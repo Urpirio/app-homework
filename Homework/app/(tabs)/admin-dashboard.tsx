@@ -2,12 +2,13 @@ import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ClassroomModal } from '@/components/login/ClassroomModal';
 import { UserRegistrationModal } from '@/components/login/UserRegistrationModal';
 import { ThemedView } from '@/components/shared/ThemedView';
+import { useInstitution } from '@/hooks/useInstitution';
 import { useTheme } from '@/hooks/useTheme';
 import { UserRole } from '@/types/auth';
 import api from '@/utils/api';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,

@@ -87,7 +87,7 @@ export default function LibraryScreen() {
   // Flatten paginated book data
   const books = useMemo(() => {
     if (!booksData?.pages) return [];
-    return booksData.pages.flatMap((page) => page.data);
+    return booksData.pages.flatMap((page) => page?.data ?? []).filter(Boolean);
   }, [booksData]);
 
   const handleLoadMore = useCallback(() => {
@@ -265,14 +265,14 @@ export default function LibraryScreen() {
           </View>
         ) : booksError ? (
           <ErrorState
-            error={booksErrorObj!}
+            error={booksErrorObj ?? new Error('Error al cargar los libros')}
             onRetry={() => refetchBooks()}
             onBack={() => router.back()}
           />
         ) : (
           <FlatList
             data={books}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item?.id ?? Math.random().toString()}
             numColumns={2}
             contentContainerStyle={[styles.gridContent, books.length === 0 && styles.emptyGridContent]}
             showsVerticalScrollIndicator={false}

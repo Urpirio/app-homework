@@ -12,6 +12,7 @@ import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
+import { useCalendarBadge } from '@/hooks/useCalendarBadge';
 
 export default function TabLayout() {
   const { theme, isDark } = useTheme();

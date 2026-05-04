@@ -1,33 +1,33 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
-import { Ionicons } from '@expo/vector-icons';
-import React, { useState, useCallback, useEffect } from 'react';
-import { 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  View, 
-  Dimensions, 
-  ActivityIndicator,
-  Image,
-  Pressable,
-  Modal,
-  TouchableOpacity,
-  TextInput,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { 
-  FadeInDown, 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring, 
-  withTiming 
-} from 'react-native-reanimated';
 import api from '@/utils/api';
-import { useFocusEffect, router, useLocalSearchParams } from 'expo-router';
+import { onNewMessage, onNewProjectMessage } from '@/utils/socket';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useRef, useState } from 'react';
+import {
+    ActivityIndicator,
+    Dimensions,
+    Image,
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import Animated, {
+    FadeInDown,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming
+} from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -38,6 +38,22 @@ const getFullUrl = (path: string) => {
   if (path.startsWith('http')) return path;
   return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
 };
+
+/** Format a Date into a human-readable chat timestamp */
+function formatMessageTime(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } else if (diffDays === 1) {
+    return 'Ayer';
+  } else if (diffDays < 7) {
+    return ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][date.getDay()];
+  }
+  return date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
+}
 
 export default function CollaboratorsScreen() {
   const { theme } = useTheme();
@@ -93,12 +109,9 @@ export default function CollaboratorsScreen() {
       setLoading(true);
       const endpoint = projectId ? `/projects/${projectId}/members` : '/collaborators';
       const collabsRes = await api.get(endpoint);
-
       const data = collabsRes.data;
-      
+
       const mapped = data.map((c: any) => {
-        // Si viene de /projects/:id/members, el usuario está en c.user
-        // Si viene de /collaborators, el usuario está en c.collaborator
         const col = c.collaborator || c.user || c;
         return {
           id: col.id,
@@ -106,12 +119,43 @@ export default function CollaboratorsScreen() {
           name: col.fullName || col.name,
           role: col.role || c.role || 'Colaborador',
           avatar: col.avatarUrl,
-          // Los miembros de proyecto son activos por defecto
           status: (projectId || c.status === 'ACTIVE') ? 'active' : 'pending',
           isRequester: c.isRequester,
+          lastMessage: null as string | null,
+          lastMessageTime: null as string | null,
+          unreadCount: 0,
         };
       });
-      setCollaborators(mapped);
+
+      // Fetch last message preview for each active collaborator (in parallel, best-effort)
+      const withPreviews = await Promise.all(
+        mapped.map(async (collab: any) => {
+          if (collab.status !== 'active') return collab;
+          try {
+            const msgRes = await api.get(`/messages/${collab.id}`, {
+              params: { page: 1, limit: 1 },
+            });
+            const msgs = Array.isArray(msgRes.data)
+              ? msgRes.data
+              : (msgRes.data?.data ?? []);
+            const last = msgs[msgs.length - 1] ?? msgs[0];
+            if (last) {
+              return {
+                ...collab,
+                lastMessage: last.attachment
+                  ? `📎 ${last.attachment.fileName}`
+                  : last.text || '',
+                lastMessageTime: formatMessageTime(new Date(last.createdAt)),
+              };
+            }
+          } catch {
+            // 403 = not collaborators yet, or no messages — silently skip
+          }
+          return collab;
+        })
+      );
+
+      setCollaborators(withPreviews);
     } catch (error) {
       console.error('Error fetching collaborators:', error);
     } finally {
@@ -121,16 +165,24 @@ export default function CollaboratorsScreen() {
 
   const fetchSubjects = async () => {
     try {
-      const res = await api.get('/auth/profile');
-      const instId = res.data.institutionId;
-      // Por ahora mockeamos grupos de materias si no hay endpoint directo
-      setSubjects([
-        { id: 'g1', name: 'Matemáticas 6to A', lastMsg: 'Prof. Alberto: Recuerden la tarea...', time: '10:30 AM', unread: 2 },
-        { id: 'g2', name: 'Lengua Española 6to A', lastMsg: 'Dra. Elena: Examen el viernes', time: 'Ayer', unread: 0 },
-        { id: 'g3', name: 'Ciencias Naturales 5to B', lastMsg: 'Ana: ¿Alguien tiene el PDF?', time: 'Lun', unread: 5 },
-      ]);
+      const res = await api.get('/subjects/chats');
+      const data = Array.isArray(res.data) ? res.data : [];
+      setSubjects(
+        data.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          lastMsg: s.lastMessage
+            ? `${s.lastMessage.senderName}: ${s.lastMessage.text}`
+            : 'Sin mensajes aún',
+          time: s.lastMessage
+            ? formatMessageTime(new Date(s.lastMessage.createdAt))
+            : '',
+          unread: 0, // backend doesn't track unread per-user yet
+        }))
+      );
     } catch (error) {
       console.error('Error fetching subjects:', error);
+      setSubjects([]);
     }
   };
 
@@ -174,10 +226,30 @@ export default function CollaboratorsScreen() {
         handleSearch(scannedCode);
       } else if (autoOpenAdd === 'true') {
         setIsAddModalVisible(true);
-        // Limpiar el parámetro para que no se reabra al volver a enfocar
         router.setParams({ autoOpenAdd: undefined });
       }
     }, [scannedCode, projectId, autoOpenAdd])
+  );
+
+  // Refresh previews when a new message arrives via socket
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      const handleNewMsg = () => {
+        // Debounce to avoid hammering the API on rapid messages
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = setTimeout(() => {
+          fetchCollaborators();
+          fetchSubjects();
+        }, 1500);
+      };
+      onNewMessage(handleNewMsg);
+      onNewProjectMessage(handleNewMsg);
+
+      return () => {
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      };
+    }, [])
   );
 
   const handleConfirmAdd = async () => {
@@ -308,15 +380,19 @@ export default function CollaboratorsScreen() {
                       <View style={styles.content}>
                         <View style={styles.nameRow}>
                           <Text style={[styles.name, { color: theme.colors.text }]}>{collab.name}</Text>
-                          <Text style={[styles.timeText, { color: theme.colors.textSecondary }]}>12:45 PM</Text>
+                          <Text style={[styles.timeText, { color: theme.colors.textSecondary }]}>
+                            {collab.lastMessageTime ?? ''}
+                          </Text>
                         </View>
                         <View style={styles.msgPreviewRow}>
                           <Text style={[styles.role, { color: theme.colors.textSecondary, flex: 1 }]} numberOfLines={1}>
-                            {collab.status === 'pending' ? 'Solicitud pendiente...' : 'Hola! ¿Cómo vas con la tarea?'}
+                            {collab.status === 'pending'
+                              ? 'Solicitud pendiente...'
+                              : collab.lastMessage ?? 'Sin mensajes aún'}
                           </Text>
-                          {index === 0 && (
+                          {collab.unreadCount > 0 && (
                             <View style={[styles.unreadBadge, { backgroundColor: theme.colors.primary }]}>
-                              <Text style={styles.unreadText}>2</Text>
+                              <Text style={styles.unreadText}>{collab.unreadCount}</Text>
                             </View>
                           )}
                         </View>

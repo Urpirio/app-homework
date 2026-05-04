@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TasksService } from './tasks.service';
 
@@ -9,6 +9,7 @@ export class UnitsController {
 
   @Get(':unitId/tasks')
   getUnitTasks(
+    @Request() req: any,
     @Param('unitId') unitId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -22,6 +23,7 @@ export class UnitsController {
       status,
       deadlineBefore,
       deadlineAfter,
+      userId: req.user.userId,
     });
   }
 }

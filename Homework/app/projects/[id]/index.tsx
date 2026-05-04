@@ -52,6 +52,7 @@ export default function ProjectDetailScreen() {
 
   const unitList = (units ?? []).map((unit: any) => {
     const totalTasks = unit.tasks?.length ?? 0;
+    // A task is "completed" by the student if they have a submission for it
     const completedTasks = unit.tasks?.filter(
       (t: any) => t.submissions && t.submissions.length > 0
     ).length ?? 0;
@@ -62,6 +63,7 @@ export default function ProjectDetailScreen() {
       name: unit.name,
       description: unit.description ?? '',
       tasksCount: totalTasks,
+      completedTasks,
       progress,
     };
   });
@@ -264,7 +266,7 @@ export default function ProjectDetailScreen() {
                               <Text
                                 style={[styles.unitTasksCount, { color: theme.colors.primary }]}
                               >
-                                {unit.tasksCount} Tareas
+                                {unit.tasksCount} Tareas · {unit.completedTasks} entregadas
                               </Text>
                             </View>
                           </View>

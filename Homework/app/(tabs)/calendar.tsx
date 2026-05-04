@@ -12,12 +12,46 @@
  * Validates: Requirements 19.1, 19.2, 19.3, 19.4, 19.5, 19.6, 19.7, 19.8, 19.9, 12.8
  */
 
+import { CreateScheduleModal } from '@/components/calendar/CreateScheduleModal';
+import { BackgroundShapes } from '@/components/login/BackgroundShapes';
+import { ConfirmModal } from '@/components/shared/ConfirmModal';
+import { ErrorState } from '@/components/shared/ErrorState';
+import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
+import { ThemedView } from '@/components/shared/ThemedView';
 import { useProfile } from '@/hooks/api/useAuth';
-import { useDeleteSchedule } from '@/hooks/api/useSchedules';
+import { useDeleteSchedule, useSchedules } from '@/hooks/api/useSchedules';
+import { useCalendarTasks } from '@/hooks/api/useTasks';
 import { useRouteGuard } from '@/hooks/useRouteGuard';
+import { useTheme } from '@/hooks/useTheme';
 import {
-    Dimensions
+  addMonths,
+  addWeeks,
+  CalendarEvent,
+  DAY_NAMES_FULL,
+  endOfWeek,
+  EVENT_COLORS,
+  getMonthGridDates,
+  getWeekDates,
+  isSameDay,
+  mergeCalendarEvents,
+  MONTH_NAMES,
+  startOfWeek,
+  toDateKey,
+} from '@/utils/calendarHelpers';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
+import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -29,6 +63,7 @@ type ViewMode = 'monthly' | 'weekly';
 
 export default function CalendarScreen() {
   const { theme } = useTheme();
+  const router = useRouter();
   const today = useMemo(() => new Date(), []);
   const [viewMode, setViewMode] = useState<ViewMode>('monthly');
   const [currentDate, setCurrentDate] = useState(today);

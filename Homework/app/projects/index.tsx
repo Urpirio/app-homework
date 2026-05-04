@@ -56,10 +56,12 @@ export default function SubjectsScreen() {
         ) : (
           <FlatList
             data={subjects}
-            keyExtractor={item => item.id}
+            keyExtractor={item => item.id ?? Math.random().toString()}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
-            renderItem={({ item, index }) => (
+            renderItem={({ item, index }) => {
+              if (!item?.id) return null;
+              return (
               <Animated.View entering={FadeInDown.delay(index * 100)}>
                 <Pressable 
                   onPress={() => router.push(`/projects/${item.id}`)}
@@ -87,7 +89,8 @@ export default function SubjectsScreen() {
                   <Ionicons name="chevron-forward" size={16} color={theme.colors.border} style={{ marginLeft: 10 }} />
                 </Pressable>
               </Animated.View>
-            )}
+              );
+            }}
           />
         )}
       </ThemedView>

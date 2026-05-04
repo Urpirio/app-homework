@@ -130,7 +130,7 @@ export class TasksService {
 
     /**
      * Get paginated tasks within a unit, with optional status and deadline filtering.
-     * Returns tasks with submission counts for display in the unit detail view.
+     * Returns tasks with submission counts and whether the current user has submitted.
      */
     async getUnitTasks(
       unitId: string,
@@ -140,38 +140,20 @@ export class TasksService {
         status?: string;
         deadlineBefore?: string;
         deadlineAfter?: string;
+        userId?: string;
       } = {},
     ) {
-      const { page = 1, limit = 15, status, deadlineBefore, deadlineAfter } = options;
+      const { page = 1, limit = 15, status, deadlineBefore, deadlineAfter, userId } = options;
 
-      // Verify the unit exists
-      const unit = await this.prisma.unit.findUnique({
-        where: { id: unitId },
-      });
+      const unit = await this.prisma.unit.findUnique({ where: { id: unitId } });
+      if (!unit) throw new NotFoundException('Unidad no encontrada');
 
-      if (!unit) {
-        throw new NotFoundException('Unidad no encontrada');
-      }
-
-      // Build where clause
-      const where: Prisma.TaskWhereInput = {
-        unitId,
-      };
-
-      // Apply optional status filter
-      if (status) {
-        where.status = status.toUpperCase().replace(/-/g, '_') as any;
-      }
-
-      // Apply optional deadline filters
+      const where: Prisma.TaskWhereInput = { unitId };
+      if (status) where.status = status.toUpperCase().replace(/-/g, '_') as any;
       if (deadlineBefore || deadlineAfter) {
         where.dueDate = {};
-        if (deadlineBefore) {
-          where.dueDate.lte = new Date(deadlineBefore);
-        }
-        if (deadlineAfter) {
-          where.dueDate.gte = new Date(deadlineAfter);
-        }
+        if (deadlineBefore) (where.dueDate as any).lte = new Date(deadlineBefore);
+        if (deadlineAfter) (where.dueDate as any).gte = new Date(deadlineAfter);
       }
 
       const [tasks, total] = await Promise.all([
@@ -179,6 +161,14 @@ export class TasksService {
           where,
           include: {
             _count: { select: { submissions: true } },
+            // Include the current user's submission if userId is provided
+            ...(userId && {
+              submissions: {
+                where: { studentId: userId },
+                select: { id: true, status: true, grade: true, createdAt: true },
+                take: 1,
+              },
+            }),
           },
           skip: (page - 1) * limit,
           take: limit,
@@ -196,6 +186,15 @@ export class TasksService {
           dueDate: task.dueDate ? task.dueDate.toISOString() : null,
           maxGrade: task.maxGrade,
           submissionCount: task._count.submissions,
+          // Per-student submission status
+          mySubmission: userId && (task as any).submissions?.[0]
+            ? {
+                id: (task as any).submissions[0].id,
+                status: (task as any).submissions[0].status,
+                grade: (task as any).submissions[0].grade,
+                createdAt: (task as any).submissions[0].createdAt,
+              }
+            : null,
         })),
         total,
         page,

@@ -88,17 +88,21 @@ export default function ChatScreen() {
   const deleteChatHistoryMutation = useDeleteChatHistory();
 
   // Map API ChatMessage pages to flat DisplayMessage array
-  const messages: DisplayMessage[] = useMemo(() => {
+  const serverMessages: DisplayMessage[] = useMemo(() => {
     if (!conversationData?.pages || !myId) return [];
 
-    const allMessages: DisplayMessage[] = [];
-    // Pages are in reverse chronological order; flatten and reverse so oldest first
+    const result: DisplayMessage[] = [];
+    // Pages come in ascending order (page 1 = oldest); reverse to show oldest first
     for (let i = conversationData.pages.length - 1; i >= 0; i--) {
       const page = conversationData.pages[i];
-      const pageMessages = (page.data ?? page as any)
-      const items = Array.isArray(pageMessages) ? pageMessages : [];
+      // Backend may return plain array or {data:[]} shape — handle both
+      const items: ChatMessage[] = Array.isArray(page)
+        ? (page as unknown as ChatMessage[])
+        : (page.data ?? []);
+
       for (const m of items) {
-        allMessages.push({
+        if (!m?.id) continue; // skip malformed entries
+        result.push({
           id: m.id,
           text: m.text || '',
           sender: m.senderId === myId || m.sender?.id === myId ? 'me' : 'other',
@@ -114,26 +118,27 @@ export default function ChatScreen() {
         });
       }
     }
-    return allMessages;
+    return result;
   }, [conversationData, myId]);
 
-  // Local optimistic messages (for messages sent via socket before cache invalidation)
+  // Local optimistic messages (shown immediately before server confirms)
   const [optimisticMessages, setOptimisticMessages] = useState<DisplayMessage[]>([]);
 
   // Combine server messages with optimistic ones, deduplicating by id
   const allMessages = useMemo(() => {
-    const serverIds = new Set(messages.map(m => m.id));
+    const serverIds = new Set(serverMessages.map(m => m.id));
     const uniqueOptimistic = optimisticMessages.filter(m => !serverIds.has(m.id));
-    return [...messages, ...uniqueOptimistic];
-  }, [messages, optimisticMessages]);
+    return [...serverMessages, ...uniqueOptimistic];
+  }, [serverMessages, optimisticMessages]);
 
-  // Clear optimistic messages when server data updates
+  // Scroll to bottom when new messages arrive from server
   useEffect(() => {
-    if (messages.length > 0 && optimisticMessages.length > 0) {
-      const serverIds = new Set(messages.map(m => m.id));
-      setOptimisticMessages(prev => prev.filter(m => !serverIds.has(m.id)));
+    if (allMessages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
-  }, [messages]);
+  }, [allMessages.length]);
   
   const [message, setMessage] = useState('');
   const [isModalVisible, setModalVisible] = useState(false);
@@ -173,19 +178,19 @@ export default function ChatScreen() {
       socketManager.joinProject(id);
     }
 
-    // Listen for incoming messages
+    // Listen for incoming messages and refetch from server
     const handleNewMessage = (msg: ChatMessage) => {
       if (!myId) return;
-      // Only add messages relevant to this conversation
       const isRelevant = isGroup
         ? msg.projectId === id
         : (msg.senderId === id || msg.receiverId === id);
 
-      if (isRelevant) {
+      if (isRelevant && msg.senderId !== myId) {
+        // For messages from others, add optimistically and let cache refetch confirm
         const displayMsg: DisplayMessage = {
           id: msg.id,
           text: msg.text || '',
-          sender: msg.senderId === myId ? 'me' : 'other',
+          sender: 'other',
           senderName: msg.sender?.fullName,
           timestamp: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           attachment: msg.attachment ? {
@@ -197,14 +202,9 @@ export default function ChatScreen() {
           } : undefined,
         };
         setOptimisticMessages(prev => {
-          // Avoid duplicates
           if (prev.some(m => m.id === msg.id)) return prev;
           return [...prev, displayMsg];
         });
-
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
       }
     };
 
@@ -214,18 +214,35 @@ export default function ChatScreen() {
     socketManager.onNewMessage(handleNewMessage);
 
     return () => {
-      // Cleanup is handled by socket manager's removeAllListeners on disconnect
-      // For per-screen cleanup, we rely on React Query cache invalidation
+      // Cleanup handled by socket manager on disconnect
     };
   }, [id, isGroup, myId]);
 
   const sendMessage = async () => {
     if (message.trim().length === 0 && !currentAttachment) return;
 
+    const textToSend = message.trim() || (currentAttachment ? 'Archivo adjunto' : '');
+
+    // Optimistic update — show message immediately before server confirms
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg: DisplayMessage = {
+      id: tempId,
+      text: textToSend,
+      sender: 'me',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    setOptimisticMessages(prev => [...prev, optimisticMsg]);
+    setMessage('');
+    setCurrentAttachment(null);
+
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 50);
+
     try {
       let attachmentData;
 
-      // Si hay adjunto, subirlo primero
+      // Upload attachment first if present
       if (currentAttachment) {
         const formData = new FormData();
         formData.append('file', {
@@ -240,46 +257,20 @@ export default function ChatScreen() {
         attachmentData = uploadRes.data;
       }
 
-      const textToSend = message.trim() || (currentAttachment ? 'Archivo adjunto' : '');
-
-      // Send via REST mutation (which also invalidates React Query cache)
-      const sentMessage = await sendMessageMutation.mutateAsync({
+      // Send via REST — onSuccess invalidates React Query cache
+      await sendMessageMutation.mutateAsync({
         targetId: id!,
         type: chatType,
         text: textToSend,
         attachmentUrl: attachmentData?.fileUrl,
       });
 
-      // Also emit via socket for real-time delivery to other participants
-      if (isGroup) {
-        socketManager.sendMessage({ projectId: id!, text: textToSend });
-      } else {
-        socketManager.sendMessage({ receiverId: id!, text: textToSend });
-      }
+      // Remove the temp optimistic message (server data will replace it via cache refetch)
+      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
 
-      // Add optimistic message for immediate display
-      const newDisplayMessage: DisplayMessage = {
-        id: sentMessage.id,
-        text: sentMessage.text || '',
-        sender: 'me',
-        timestamp: new Date(sentMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        attachment: sentMessage.attachment ? {
-          type: sentMessage.attachment.mimeType?.startsWith('image/') ? 'image' :
-                sentMessage.attachment.mimeType?.startsWith('video/') ? 'video' : 'document',
-          uri: getFullUrl(sentMessage.attachment.fileUrl),
-          name: sentMessage.attachment.fileName,
-          mimeType: sentMessage.attachment.mimeType,
-        } : undefined,
-      };
-
-      setOptimisticMessages(prev => [...prev, newDisplayMessage]);
-      setMessage('');
-      setCurrentAttachment(null);
-
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
     } catch (error: any) {
+      // Remove failed optimistic message
+      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
       console.error('Error sending message:', error);
       Toast.show({
         type: 'error',

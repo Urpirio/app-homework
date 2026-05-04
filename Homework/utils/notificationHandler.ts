@@ -5,10 +5,13 @@
  * is in the background or was killed. Routes the user to the appropriate
  * screen using getDeepLinkRoute().
  *
+ * NOTE: expo-notifications remote push is not supported in Expo Go (SDK 53+).
+ * All functions are no-ops in that environment to prevent crashes.
+ *
  * Validates: Requirements 5.7
  */
 
-import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 
 import {
@@ -16,25 +19,42 @@ import {
     type NotificationPayload,
 } from './notificationRouter';
 
+// Detect if running inside Expo Go (appOwnership === 'expo')
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Lazily import expo-notifications only when not in Expo Go
+let Notifications: typeof import('expo-notifications') | null = null;
+
+if (!isExpoGo) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    Notifications = require('expo-notifications');
+  } catch {
+    // Silently ignore if not available
+  }
+}
+
 /**
  * Configure how notifications are presented when the app is in the foreground.
+ * No-op in Expo Go.
  */
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 /**
  * Extract a NotificationPayload from an expo-notifications response.
- * The payload data may come from the notification content's `data` field.
  */
 function extractPayload(
-  response: Notifications.NotificationResponse
+  response: import('expo-notifications').NotificationResponse
 ): NotificationPayload | null {
   const data = response.notification.request.content.data as
     | Record<string, unknown>
@@ -58,7 +78,7 @@ function extractPayload(
  * Handle a notification tap by navigating to the deep link route.
  */
 function handleNotificationTap(
-  response: Notifications.NotificationResponse
+  response: import('expo-notifications').NotificationResponse
 ): void {
   const payload = extractPayload(response);
   if (!payload) {
@@ -70,14 +90,16 @@ function handleNotificationTap(
   router.push(route as never);
 }
 
-let responseSubscription: Notifications.Subscription | null = null;
+let responseSubscription: import('expo-notifications').Subscription | null = null;
 
 /**
  * Set up the listener for notification taps (background + killed state).
  * Call this once at app startup (e.g., in the root layout).
+ * No-op in Expo Go.
  */
 export function setupNotificationResponseListener(): void {
-  // Clean up any existing subscription
+  if (!Notifications) return;
+
   if (responseSubscription) {
     responseSubscription.remove();
   }
@@ -88,9 +110,11 @@ export function setupNotificationResponseListener(): void {
 
 /**
  * Check if the app was opened from a notification tap (cold start).
- * Should be called once after the app mounts.
+ * No-op in Expo Go.
  */
 export async function handleInitialNotification(): Promise<void> {
+  if (!Notifications) return;
+
   const response = await Notifications.getLastNotificationResponseAsync();
   if (response) {
     handleNotificationTap(response);
