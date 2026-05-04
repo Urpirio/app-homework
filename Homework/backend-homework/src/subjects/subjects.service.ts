@@ -1,11 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, Role } from '@prisma/client';
 
 @Injectable()
 export class SubjectsService {
   constructor(private prisma: PrismaService) {}
-
   async create(classId: string, user: any, data: { name: string; teacherIds: string[] }) {
     // Only admins can create subjects in classrooms
     if (user.role !== Role.SUPER_ADMIN && user.role !== Role.SCHOOL_ADMIN) {
@@ -77,6 +76,125 @@ export class SubjectsService {
     return project;
   }
 
+  async update(
+    id: string,
+    user: any,
+    data: { name?: string; description?: string; color?: string; icon?: string; teacherIds?: string[] },
+  ) {
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      include: {
+        members: true,
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Materia no encontrada');
+    }
+
+    // TEACHER can only update subjects they own or are a member of
+    if (user.role === Role.TEACHER) {
+      const isMember = project.members.some(m => m.userId === user.userId);
+      const isOwner = project.userId === user.userId;
+      if (!isMember && !isOwner) {
+        throw new ForbiddenException('No tienes permiso para editar esta materia');
+      }
+    }
+
+    // Update project fields
+    const { teacherIds, ...projectData } = data;
+    const updatedProject = await this.prisma.project.update({
+      where: { id },
+      data: projectData,
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                role: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: { tasks: true, members: true },
+        },
+      },
+    });
+
+    // Update teacher assignments if provided
+    if (teacherIds !== undefined) {
+      // Remove existing teacher members
+      await this.prisma.projectMember.deleteMany({
+        where: { projectId: id, role: 'teacher' },
+      });
+
+      // Add new teacher members
+      if (teacherIds.length > 0) {
+        await Promise.all(
+          teacherIds.map(teacherId =>
+            this.prisma.projectMember.create({
+              data: {
+                projectId: id,
+                userId: teacherId,
+                role: 'teacher',
+              },
+            }),
+          ),
+        );
+      }
+
+      // Re-fetch to include updated members
+      return this.prisma.project.findUnique({
+        where: { id },
+        include: {
+          members: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  role: true,
+                },
+              },
+            },
+          },
+          _count: {
+            select: { tasks: true, members: true },
+          },
+        },
+      });
+    }
+
+    return updatedProject;
+  }
+
+  async remove(id: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { tasks: true, units: true, members: true },
+        },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Materia no encontrada');
+    }
+
+    // Cascading delete: Prisma schema has onDelete: Cascade for tasks, units, members, messages, schedules
+    // Tasks cascade to submissions via onDelete: Cascade on Task model
+    // So deleting the project cascades through: project -> tasks -> submissions, project -> units, project -> members, etc.
+    await this.prisma.project.delete({
+      where: { id },
+    });
+
+    return { message: 'Materia eliminada exitosamente' };
+  }
+
   async getTasks(id: string) {
     return this.prisma.task.findMany({
       where: { projectId: id },
@@ -97,5 +215,83 @@ export class SubjectsService {
     return {
       avgGrade: submissions._avg.grade || 0,
     };
+  }
+
+  async getChats(userId: string, userRole: Role, userClassroomId?: string, userInstitutionId?: string) {
+    // Look up user details for classroom/institution context
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { classroomId: true, institutionId: true },
+    });
+
+    const effectiveClassroomId = userClassroomId || user?.classroomId;
+
+    // Find all subjects (projects with classroomId set) the user has access to
+    const whereConditions: any[] = [];
+
+    // User is the owner/creator of the subject
+    whereConditions.push({ userId });
+
+    // User is a project member
+    whereConditions.push({
+      members: {
+        some: { userId },
+      },
+    });
+
+    // Students: subjects in their classroom
+    if (userRole === Role.STUDENT && effectiveClassroomId) {
+      whereConditions.push({ classroomId: effectiveClassroomId });
+    }
+
+    const subjects = await this.prisma.project.findMany({
+      where: {
+        classroomId: { not: null },
+        OR: whereConditions,
+      },
+      include: {
+        classroom: {
+          select: { id: true, name: true },
+        },
+        members: {
+          select: { userId: true },
+        },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: {
+            sender: {
+              select: { id: true, fullName: true },
+            },
+          },
+        },
+        _count: {
+          select: { members: true },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return subjects.map((subject) => {
+      const lastMessage = subject.messages[0] || null;
+      const memberCount = subject._count.members;
+
+      return {
+        id: subject.id,
+        name: subject.name,
+        classroomId: subject.classroom?.id || null,
+        classroomName: subject.classroom?.name || null,
+        participantCount: memberCount,
+        lastMessage: lastMessage
+          ? {
+              id: lastMessage.id,
+              text: lastMessage.text,
+              senderId: lastMessage.senderId,
+              senderName: lastMessage.sender.fullName,
+              createdAt: lastMessage.createdAt,
+            }
+          : null,
+      };
+    });
   }
 }

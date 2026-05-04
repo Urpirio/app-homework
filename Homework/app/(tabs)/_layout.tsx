@@ -1,15 +1,24 @@
-import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { useNotificationBadge } from '@/hooks/useNotificationBadge';
+import { useRouteGuard } from '@/hooks/useRouteGuard';
 import { useTheme } from '@/hooks/useTheme';
-import { BlurView } from 'expo-blur';
-import { Platform, StyleSheet } from 'react-native';
-import React, { useState, useEffect } from 'react';
 import api from '@/utils/api';
-import { UserRole } from '@/types/auth';
+import {
+    handleInitialNotification,
+    removeNotificationResponseListener,
+    setupNotificationResponseListener,
+} from '@/utils/notificationHandler';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { Tabs } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Platform, StyleSheet } from 'react-native';
 
 export default function TabLayout() {
   const { theme, isDark } = useTheme();
   const [role, setRole] = useState<string | null>(null);
+  const { isTabVisible } = useRouteGuard(role);
+  const { count: notificationBadge } = useNotificationBadge();
+  const calendarBadge = useCalendarBadge();
 
   useEffect(() => {
     let isMounted = true;
@@ -23,6 +32,15 @@ export default function TabLayout() {
     };
     fetchRole();
     return () => { isMounted = false; };
+  }, []);
+
+  // Set up background notification tap handling
+  useEffect(() => {
+    setupNotificationResponseListener();
+    handleInitialNotification();
+    return () => {
+      removeNotificationResponseListener();
+    };
   }, []);
 
   return (
@@ -56,6 +74,7 @@ export default function TabLayout() {
         name="home"
         options={{
           title: 'Inicio',
+          tabBarBadge: notificationBadge > 0 ? notificationBadge : undefined,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons 
               name={focused ? 'home' : 'home-outline'} 
@@ -69,6 +88,7 @@ export default function TabLayout() {
         name="calendar"
         options={{
           title: 'Calendario',
+          tabBarBadge: calendarBadge > 0 ? calendarBadge : undefined,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons 
               name={focused ? 'calendar' : 'calendar-outline'} 
@@ -95,7 +115,7 @@ export default function TabLayout() {
         name="admin-dashboard"
         options={{
           title: 'Admin',
-          href: (role === UserRole.SCHOOL_ADMIN || role === UserRole.SUPER_ADMIN) ? '/admin-dashboard' : null,
+          href: isTabVisible('admin-dashboard') ? '/admin-dashboard' : null,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons 
               name={focused ? 'stats-chart' : 'stats-chart-outline'} 

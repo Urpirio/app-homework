@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
-import { SubjectsService } from './subjects.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
+import { Body, Controller, Delete, Get, Param, Post, Put, Request, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { UpdateSubjectDto } from './dto/update-subject.dto';
+import { SubjectsService } from './subjects.service';
 
 @Controller('subjects')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -20,9 +21,33 @@ export class SubjectsController {
     return this.subjectsService.create(classId, req.user, data);
   }
 
+  @Get('chats')
+  getChats(@Request() req: any) {
+    return this.subjectsService.getChats(
+      req.user.userId,
+      req.user.role,
+    );
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.subjectsService.findOne(id);
+  }
+
+  @Put(':id')
+  @Roles(Role.TEACHER, Role.SCHOOL_ADMIN, Role.SUPER_ADMIN)
+  update(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() data: UpdateSubjectDto,
+  ) {
+    return this.subjectsService.update(id, req.user, data);
+  }
+
+  @Delete(':id')
+  @Roles(Role.SCHOOL_ADMIN, Role.SUPER_ADMIN)
+  remove(@Param('id') id: string) {
+    return this.subjectsService.remove(id);
   }
 
   @Get(':id/tasks')

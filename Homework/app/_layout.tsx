@@ -1,9 +1,13 @@
+import { InstitutionProvider } from '@/providers/InstitutionContext';
+import { SessionTimeoutProvider } from '@/providers/SessionTimeoutProvider';
+import { queryClient } from '@/utils/queryClient';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import React from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import "react-native-reanimated";
 import Toast, { BaseToast, ErrorToast, InfoToast } from 'react-native-toast-message';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import React from 'react';
 
 // Tell Expo Router to start on 'login' instead of 'index'
 export const unstable_settings = {
@@ -64,10 +68,16 @@ const toastConfig = {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }} />
-      <StatusBar style="auto" />
-      <Toast config={toastConfig} />
-    </GestureHandlerRootView>
+    <QueryClientProvider client={queryClient}>
+      <InstitutionProvider>
+        <SessionTimeoutProvider>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <Stack screenOptions={{ headerShown: false }} />
+            <StatusBar style="auto" />
+            <Toast config={toastConfig} />
+          </GestureHandlerRootView>
+        </SessionTimeoutProvider>
+      </InstitutionProvider>
+    </QueryClientProvider>
   );
 }

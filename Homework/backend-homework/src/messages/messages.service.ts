@@ -1,6 +1,6 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { CollaboratorsService } from '../collaborators/collaborators.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class MessagesService {
@@ -10,32 +10,44 @@ export class MessagesService {
   ) {}
 
   async getMessages(userId: string, collaboratorId: string, page = 1, limit = 50) {
-    // Validar que son colaboradores activos
-    const isActive = await this.collaboratorsService.isActiveCollaboration(userId, collaboratorId);
-    if (!isActive) {
-      throw new ForbiddenException('No puedes chatear con este usuario. La solicitud aún no ha sido aceptada.');
+      // Validar que son colaboradores activos
+      const isActive = await this.collaboratorsService.isActiveCollaboration(userId, collaboratorId);
+      if (!isActive) {
+        throw new ForbiddenException('No puedes chatear con este usuario. La solicitud aún no ha sido aceptada.');
+      }
+
+      const skip = (page - 1) * limit;
+
+      // Check if user has soft-deleted this conversation
+      const deletion = await this.prisma.messageDeletion.findUnique({
+        where: {
+          userId_conversationId_conversationType: {
+            userId,
+            conversationId: collaboratorId,
+            conversationType: 'user',
+          },
+        },
+      });
+
+      const messages = await this.prisma.message.findMany({
+        where: {
+          OR: [
+            { senderId: userId, receiverId: collaboratorId },
+            { senderId: collaboratorId, receiverId: userId },
+          ],
+          ...(deletion && { createdAt: { gt: deletion.deletedAt } }),
+        },
+        include: {
+          attachment: true,
+          sender: { select: { id: true, fullName: true, avatarUrl: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      });
+
+      return messages.reverse();
     }
-
-    const skip = (page - 1) * limit;
-
-    const messages = await this.prisma.message.findMany({
-      where: {
-        OR: [
-          { senderId: userId, receiverId: collaboratorId },
-          { senderId: collaboratorId, receiverId: userId },
-        ],
-      },
-      include: {
-        attachment: true,
-        sender: { select: { id: true, fullName: true, avatarUrl: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
-    });
-
-    return messages.reverse();
-  }
 
   async getProjectMessages(userId: string, projectId: string, page = 1, limit = 50) {
     // Verificar que el usuario es miembro del proyecto
@@ -52,8 +64,22 @@ export class MessagesService {
 
     const skip = (page - 1) * limit;
 
+    // Check if user has soft-deleted this conversation
+    const deletion = await this.prisma.messageDeletion.findUnique({
+      where: {
+        userId_conversationId_conversationType: {
+          userId,
+          conversationId: projectId,
+          conversationType: 'project',
+        },
+      },
+    });
+
     const messages = await this.prisma.message.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(deletion && { createdAt: { gt: deletion.deletedAt } }),
+      },
       include: {
         attachment: true,
         sender: { select: { id: true, fullName: true, avatarUrl: true } },
@@ -149,14 +175,45 @@ export class MessagesService {
     return attachments;
   }
 
-  async clearChat(userId: string, collaboratorId: string) {
-    return this.prisma.message.deleteMany({
+  async clearChatHistory(userId: string, conversationId: string, type: 'user' | 'project') {
+    // Validate access to the conversation
+    if (type === 'user') {
+      const isActive = await this.collaboratorsService.isActiveCollaboration(userId, conversationId);
+      if (!isActive) {
+        throw new ForbiddenException('No puedes gestionar este chat. La solicitud aún no ha sido aceptada.');
+      }
+    } else {
+      const isMember = await this.prisma.projectMember.findFirst({
+        where: { projectId: conversationId, userId },
+      });
+      const isOwner = await this.prisma.project.findFirst({
+        where: { id: conversationId, userId },
+      });
+      if (!isMember && !isOwner) {
+        throw new ForbiddenException('No tienes acceso a este chat grupal.');
+      }
+    }
+
+    // Upsert a MessageDeletion record — sets deletedAt to now
+    await this.prisma.messageDeletion.upsert({
       where: {
-        OR: [
-          { senderId: userId, receiverId: collaboratorId },
-          { senderId: collaboratorId, receiverId: userId },
-        ],
+        userId_conversationId_conversationType: {
+          userId,
+          conversationId,
+          conversationType: type,
+        },
+      },
+      update: {
+        deletedAt: new Date(),
+      },
+      create: {
+        userId,
+        conversationId,
+        conversationType: type,
+        deletedAt: new Date(),
       },
     });
+
+    return { message: 'Historial de chat eliminado exitosamente' };
   }
 }

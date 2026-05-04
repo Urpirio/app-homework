@@ -47,6 +47,9 @@ model User {
   parentName              String?
   parentPhone             String?
 
+  // Notification preferences stored as JSON
+  notificationPreferences Json?
+
   institutionId           String?
   institution             Institution?   @relation(fields: [institutionId], references: [id])
 
@@ -311,6 +314,16 @@ model Attachment {
   mimeType  String
   fileSize  Int?
   createdAt DateTime @default(now())
+}
+
+model MessageDeletion {
+  id               String   @id @default(uuid())
+  userId           String
+  conversationId   String   // The other user's ID (for DMs) or projectId (for group chats)
+  conversationType String   // "user" or "project"
+  deletedAt        DateTime @default(now())
+
+  @@unique([userId, conversationId, conversationType])
 }
 
 enum TicketStatus {

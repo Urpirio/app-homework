@@ -3,69 +3,64 @@ import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  View, 
-  Pressable, 
-  ActivityIndicator,
-  Image,
-  Alert
+import React, { useState } from 'react';
+import {
+    Alert,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import api from '@/utils/api';
+import Toast from 'react-native-toast-message';
 
 export default function SupportProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { theme } = useTheme();
   
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: user, isLoading: loading, isError, error, refetch } = useUserDetail(id || '');
   const [optionsVisible, setOptionsVisible] = useState(false);
-
-  useEffect(() => {
-    fetchSupportProfile();
-  }, [id]);
-
-  const fetchSupportProfile = async () => {
-    try {
-      const res = await api.get(`/users/${id}/profile`);
-      setUser(res.data);
-    } catch (error) {
-      // Mock data matching existing style
-      setUser({
-        id,
-        fullName: 'Roberto Gómez',
-        email: 'roberto.g@soporte.com',
-        role: 'SUPPORT',
-        specialty: 'Soporte Técnico Nivel 2',
-        avatar: 'https://i.pravatar.cc/150?u=roberto',
-        stats: {
-          ticketsSolved: 145,
-          activeAlerts: 2,
-          avgResponse: '15m',
-          rating: 4.8
-        },
-        tickets: [
-          { id: 't1', title: 'Error en acceso a plataforma', date: 'Hoy, 10:30 AM', status: 'RESOLVED' },
-          { id: 't2', title: 'Recuperación de contraseña docente', date: 'Ayer, 03:45 PM', status: 'RESOLVED' },
-          { id: 't3', title: 'Falla en carga de archivos - 6to A', date: '22 May, 09:15 AM', status: 'RESOLVED' },
-          { id: 't4', title: 'Actualización de roles institucionales', date: '21 May, 11:20 AM', status: 'IN_PROGRESS' },
-        ]
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+        <ThemedView style={styles.container}>
+          <BackgroundShapes />
+          <View style={styles.header}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+            </Pressable>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Perfil de Usuario</Text>
+            <View style={styles.headerActions} />
+          </View>
+          <SkeletonLoader rows={4} variant="detail" />
+        </ThemedView>
+      </SafeAreaView>
+    );
+  }
+
+  if (isError || !user) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+        <ThemedView style={styles.container}>
+          <BackgroundShapes />
+          <View style={styles.header}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+            </Pressable>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Perfil de Usuario</Text>
+            <View style={styles.headerActions} />
+          </View>
+          <ErrorState
+            error={error as any || new Error('User not found')}
+            onRetry={() => refetch()}
+            onBack={() => router.back()}
+          />
+        </ThemedView>
+      </SafeAreaView>
     );
   }
 

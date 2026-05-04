@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Param, Query, Body, UseGuards, Request, Delete } from '@nestjs/common';
-import { MessagesService } from './messages.service';
+import { Body, Controller, Delete, Get, Param, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { MessagesService } from './messages.service';
 
 @Controller('messages')
 @UseGuards(JwtAuthGuard)
@@ -64,11 +64,20 @@ export class MessagesController {
     return this.messagesService.getSharedFiles(req.user.userId, collaboratorId, type);
   }
 
+  @Delete(':conversationId/history')
+  clearChatHistory(
+    @Request() req: any,
+    @Param('conversationId') conversationId: string,
+    @Query('type') type: 'user' | 'project' = 'user',
+  ) {
+    return this.messagesService.clearChatHistory(req.user.userId, conversationId, type);
+  }
+
   @Delete(':collaboratorId')
   clearChat(
     @Request() req: any,
     @Param('collaboratorId') collaboratorId: string,
   ) {
-    return this.messagesService.clearChat(req.user.userId, collaboratorId);
+    return this.messagesService.clearChatHistory(req.user.userId, collaboratorId, 'user');
   }
 }

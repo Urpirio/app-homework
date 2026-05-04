@@ -1,38 +1,40 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Dimensions,
-  Image,
-  Modal,
-  TouchableWithoutFeedback,
-  Linking,
-  Alert,
-} from 'react-native';
-import * as DocumentPicker from 'expo-document-picker';
-import * as ImagePicker from 'expo-image-picker';
-import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as IntentLauncher from 'expo-intent-launcher';
-import * as Clipboard from 'expo-clipboard';
-import Toast from 'react-native-toast-message';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/hooks/useTheme';
-import { ThemedView } from '@/components/shared/ThemedView';
-import Animated, { FadeInRight, FadeInLeft, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import api from '@/utils/api';
-import * as SecureStore from 'expo-secure-store';
 import { BaseModal } from '@/components/shared/BaseModal';
 import { ConfirmModal } from '@/components/shared/ConfirmModal';
+import { useProfile } from '@/hooks/api/useAuth';
+import { useConversation, useDeleteChatHistory, useSendMessage } from '@/hooks/api/useMessages';
+import { useTheme } from '@/hooks/useTheme';
+import type { ChatMessage } from '@/types/message';
+import api from '@/utils/api';
+import * as socketManager from '@/utils/socket';
+import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
+} from 'react-native';
+import Animated, { FadeInLeft, FadeInRight } from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -43,17 +45,19 @@ interface Attachment {
   mimeType?: string;
 }
 
-interface Message {
+interface DisplayMessage {
   id: string;
   text: string;
   sender: 'me' | 'other';
+  senderName?: string;
   timestamp: string;
   attachment?: Attachment;
 }
 
 export default function ChatScreen() {
   const { id, name, type } = useLocalSearchParams<{ id: string; name: string; type?: 'user' | 'project' }>();
-  const isGroup = type === 'project';
+  const chatType = type || 'user';
+  const isGroup = chatType === 'project';
   const router = useRouter();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -62,9 +66,74 @@ export default function ChatScreen() {
   const getFullUrl = (path: string) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    if (path.startsWith('file://')) return path; // Para adjuntos locales antes de subir
+    if (path.startsWith('file://')) return path;
     return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
   };
+
+  // React Query hooks
+  const { data: profile } = useProfile();
+  const myId = profile?.id;
+
+  const {
+    data: conversationData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: loadingMessages,
+    isError: isConversationError,
+    error: conversationError,
+  } = useConversation(id!, chatType);
+
+  const sendMessageMutation = useSendMessage();
+  const deleteChatHistoryMutation = useDeleteChatHistory();
+
+  // Map API ChatMessage pages to flat DisplayMessage array
+  const messages: DisplayMessage[] = useMemo(() => {
+    if (!conversationData?.pages || !myId) return [];
+
+    const allMessages: DisplayMessage[] = [];
+    // Pages are in reverse chronological order; flatten and reverse so oldest first
+    for (let i = conversationData.pages.length - 1; i >= 0; i--) {
+      const page = conversationData.pages[i];
+      const pageMessages = (page.data ?? page as any)
+      const items = Array.isArray(pageMessages) ? pageMessages : [];
+      for (const m of items) {
+        allMessages.push({
+          id: m.id,
+          text: m.text || '',
+          sender: m.senderId === myId || m.sender?.id === myId ? 'me' : 'other',
+          senderName: m.sender?.fullName,
+          timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          attachment: m.attachment ? {
+            type: m.attachment.mimeType?.startsWith('image/') ? 'image' :
+                  m.attachment.mimeType?.startsWith('video/') ? 'video' : 'document',
+            uri: getFullUrl(m.attachment.fileUrl),
+            name: m.attachment.fileName,
+            mimeType: m.attachment.mimeType,
+          } : undefined,
+        });
+      }
+    }
+    return allMessages;
+  }, [conversationData, myId]);
+
+  // Local optimistic messages (for messages sent via socket before cache invalidation)
+  const [optimisticMessages, setOptimisticMessages] = useState<DisplayMessage[]>([]);
+
+  // Combine server messages with optimistic ones, deduplicating by id
+  const allMessages = useMemo(() => {
+    const serverIds = new Set(messages.map(m => m.id));
+    const uniqueOptimistic = optimisticMessages.filter(m => !serverIds.has(m.id));
+    return [...messages, ...uniqueOptimistic];
+  }, [messages, optimisticMessages]);
+
+  // Clear optimistic messages when server data updates
+  useEffect(() => {
+    if (messages.length > 0 && optimisticMessages.length > 0) {
+      const serverIds = new Set(messages.map(m => m.id));
+      setOptimisticMessages(prev => prev.filter(m => !serverIds.has(m.id)));
+    }
+  }, [messages]);
   
   const [message, setMessage] = useState('');
   const [isModalVisible, setModalVisible] = useState(false);
@@ -74,58 +143,81 @@ export default function ChatScreen() {
   const [selectedDoc, setSelectedDoc] = useState<Attachment | null>(null);
   const [isMessageOptionsVisible, setMessageOptionsVisible] = useState(false);
   const [selectedMessageText, setSelectedMessageText] = useState('');
-  
-   const [messages, setMessages] = useState<Message[]>([]);
-   const [loadingMessages, setLoadingMessages] = useState(true);
-   const [optionsVisible, setOptionsVisible] = useState(false);
-   const [confirmClearVisible, setConfirmClearVisible] = useState(false);
+  const [optionsVisible, setOptionsVisible] = useState(false);
+  const [confirmClearVisible, setConfirmClearVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
 
-  // Cargar historial de mensajes desde el backend
+  // Handle conversation error (e.g., 403 access denied)
   useEffect(() => {
-    const loadMessages = async () => {
-      try {
-        setLoadingMessages(true);
-        const endpoint = isGroup ? `/messages/project/${id}` : `/messages/${id}`;
-        const response = await api.get(endpoint);
-        
-        // Obtener ID del usuario actual para comparar sender
-        const profileRes = await api.get('/auth/profile');
-        const myId = profileRes.data.id;
+    if (isConversationError && conversationError) {
+      const err = conversationError as any;
+      if (err?.response?.status === 403) {
+        Toast.show({
+          type: 'error',
+          text1: 'Acceso denegado',
+          text2: err?.response?.data?.message || 'No tienes permiso para chatear con este usuario.',
+          position: 'top',
+        });
+        router.back();
+      }
+    }
+  }, [isConversationError, conversationError]);
 
-        const mapped = response.data.map((m: any) => ({
-          id: m.id,
-          text: m.text,
-          sender: m.sender?.id === myId ? 'me' : 'other',
-          senderName: m.sender?.fullName,
-          timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          attachment: m.attachment ? {
-            type: m.attachment.mimeType?.startsWith('image/') ? 'image' : 
-                  m.attachment.mimeType?.startsWith('video/') ? 'video' : 'document',
-            uri: getFullUrl(m.attachment.fileUrl),
-            name: m.attachment.fileName,
-            mimeType: m.attachment.mimeType,
+  // Socket.io: join project room and listen for real-time messages
+  useEffect(() => {
+    if (!id) return;
+
+    // Join project room for group chats
+    if (isGroup) {
+      socketManager.joinProject(id);
+    }
+
+    // Listen for incoming messages
+    const handleNewMessage = (msg: ChatMessage) => {
+      if (!myId) return;
+      // Only add messages relevant to this conversation
+      const isRelevant = isGroup
+        ? msg.projectId === id
+        : (msg.senderId === id || msg.receiverId === id);
+
+      if (isRelevant) {
+        const displayMsg: DisplayMessage = {
+          id: msg.id,
+          text: msg.text || '',
+          sender: msg.senderId === myId ? 'me' : 'other',
+          senderName: msg.sender?.fullName,
+          timestamp: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          attachment: msg.attachment ? {
+            type: msg.attachment.mimeType?.startsWith('image/') ? 'image' :
+                  msg.attachment.mimeType?.startsWith('video/') ? 'video' : 'document',
+            uri: getFullUrl(msg.attachment.fileUrl),
+            name: msg.attachment.fileName,
+            mimeType: msg.attachment.mimeType,
           } : undefined,
-        }));
-        setMessages(mapped);
-      } catch (error: any) {
-        console.error('Error loading messages:', error);
-        if (error?.response?.status === 403) {
-          Toast.show({
-            type: 'error',
-            text1: 'Acceso denegado',
-            text2: error?.response?.data?.message || 'No tienes permiso para chatear con este usuario.',
-            position: 'top'
-          });
-          router.back();
-        }
-      } finally {
-        setLoadingMessages(false);
+        };
+        setOptimisticMessages(prev => {
+          // Avoid duplicates
+          if (prev.some(m => m.id === msg.id)) return prev;
+          return [...prev, displayMsg];
+        });
+
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
       }
     };
-    loadMessages();
-  }, [id]);
+
+    if (isGroup) {
+      socketManager.onNewProjectMessage(handleNewMessage);
+    }
+    socketManager.onNewMessage(handleNewMessage);
+
+    return () => {
+      // Cleanup is handled by socket manager's removeAllListeners on disconnect
+      // For per-screen cleanup, we rely on React Query cache invalidation
+    };
+  }, [id, isGroup, myId]);
 
   const sendMessage = async () => {
     if (message.trim().length === 0 && !currentAttachment) return;
@@ -148,29 +240,39 @@ export default function ChatScreen() {
         attachmentData = uploadRes.data;
       }
 
-      // Enviar mensaje vía REST (mientras no esté WebSocket integrado en frontend)
-      const response = await api.post(`/messages/${id}?type=${isGroup ? 'project' : 'user'}`, {
-        text: message.trim() || (currentAttachment ? 'Archivo adjunto' : ''),
-        attachment: attachmentData,
+      const textToSend = message.trim() || (currentAttachment ? 'Archivo adjunto' : '');
+
+      // Send via REST mutation (which also invalidates React Query cache)
+      const sentMessage = await sendMessageMutation.mutateAsync({
+        targetId: id!,
+        type: chatType,
+        text: textToSend,
+        attachmentUrl: attachmentData?.fileUrl,
       });
 
-      // Agregar localmente al chat
-      const m = response.data;
-      const newMessage: Message = {
-        id: m.id,
-        text: m.text,
+      // Also emit via socket for real-time delivery to other participants
+      if (isGroup) {
+        socketManager.sendMessage({ projectId: id!, text: textToSend });
+      } else {
+        socketManager.sendMessage({ receiverId: id!, text: textToSend });
+      }
+
+      // Add optimistic message for immediate display
+      const newDisplayMessage: DisplayMessage = {
+        id: sentMessage.id,
+        text: sentMessage.text || '',
         sender: 'me',
-        timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        attachment: m.attachment ? {
-          type: m.attachment.mimeType?.startsWith('image/') ? 'image' :
-                m.attachment.mimeType?.startsWith('video/') ? 'video' : 'document',
-          uri: getFullUrl(m.attachment.fileUrl),
-          name: m.attachment.fileName,
-          mimeType: m.attachment.mimeType,
+        timestamp: new Date(sentMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        attachment: sentMessage.attachment ? {
+          type: sentMessage.attachment.mimeType?.startsWith('image/') ? 'image' :
+                sentMessage.attachment.mimeType?.startsWith('video/') ? 'video' : 'document',
+          uri: getFullUrl(sentMessage.attachment.fileUrl),
+          name: sentMessage.attachment.fileName,
+          mimeType: sentMessage.attachment.mimeType,
         } : undefined,
       };
 
-      setMessages(prev => [...prev, newMessage]);
+      setOptimisticMessages(prev => [...prev, newDisplayMessage]);
       setMessage('');
       setCurrentAttachment(null);
 
@@ -190,8 +292,8 @@ export default function ChatScreen() {
 
   const handleClearChat = async () => {
     try {
-      await api.delete(`/messages/${id}`);
-      setMessages([]);
+      await deleteChatHistoryMutation.mutateAsync(id!);
+      setOptimisticMessages([]);
       setConfirmClearVisible(false);
       setOptionsVisible(false);
       Toast.show({
@@ -334,7 +436,7 @@ export default function ChatScreen() {
     );
   };
 
-  const renderItem = ({ item, index }: { item: Message; index: number }) => {
+  const renderItem = ({ item, index }: { item: DisplayMessage; index: number }) => {
     const isMe = item.sender === 'me';
     
     return (
@@ -351,9 +453,9 @@ export default function ChatScreen() {
             ? [styles.myBubble, { backgroundColor: theme.colors.primary }] 
             : [styles.otherBubble, { backgroundColor: theme.colors.card }]
         ]}>
-          {!isMe && isGroup && (
+          {!isMe && isGroup && item.senderName && (
             <Text style={[styles.senderName, { color: theme.colors.primary }]}>
-              {(item as any).senderName}
+              {item.senderName}
             </Text>
           )}
           {item.attachment && (
@@ -480,15 +582,56 @@ export default function ChatScreen() {
         </View>
 
         {/* Message List */}
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-        />
+        {loadingMessages ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+              Cargando mensajes...
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={allMessages}
+            renderItem={renderItem}
+            keyExtractor={item => item.id}
+            contentContainerStyle={[
+              styles.listContent,
+              allMessages.length === 0 && styles.emptyListContent,
+            ]}
+            showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            onScroll={({ nativeEvent }) => {
+              // Load older messages when scrolling near the top
+              if (
+                nativeEvent.contentOffset.y < 100 &&
+                hasNextPage &&
+                !isFetchingNextPage
+              ) {
+                fetchNextPage();
+              }
+            }}
+            scrollEventThrottle={200}
+            ListHeaderComponent={
+              isFetchingNextPage ? (
+                <View style={styles.paginationLoader}>
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                  <Text style={[styles.paginationText, { color: theme.colors.textSecondary }]}>
+                    Cargando mensajes anteriores...
+                  </Text>
+                </View>
+              ) : null
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Ionicons name="chatbubbles-outline" size={48} color={theme.colors.textSecondary} />
+                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                  No hay mensajes aún. ¡Envía el primero!
+                </Text>
+              </View>
+            }
+          />
+        )}
 
         {/* Input Area with Preview */}
         <View style={[styles.inputWrapper, { backgroundColor: theme.colors.background, paddingBottom: Math.max(insets.bottom, 12) }]}>
@@ -1006,5 +1149,41 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  paginationLoader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  paginationText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyListContent: {
+    flexGrow: 1,
+  },
+  emptyText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

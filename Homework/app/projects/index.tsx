@@ -1,63 +1,32 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { ErrorState } from '@/components/shared/ErrorState';
+import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
+import { useProjects } from '@/hooks/api/useProjects';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
-import React, { useState, useCallback } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  Dimensions, 
-  FlatList,
-  Pressable,
-  ActivityIndicator,
+import { router } from 'expo-router';
+import React from 'react';
+import {
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import api from '@/utils/api';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const MOCK_SUBJECTS = [
-  { id: 'm1', name: 'Matemáticas IV', teacher: 'Prof. Alberto Rivera', grade: 9.5, color: '#5856D6', icon: 'calculator' },
-  { id: 'm2', name: 'Historia Universal', teacher: 'Prof. Elena Martínez', grade: 8.2, color: '#FF9500', icon: 'book' },
-  { id: 'm3', name: 'Física I', teacher: 'Prof. Roberto Sanz', grade: 7.8, color: '#FF2D55', icon: 'flask' },
-  { id: 'm4', name: 'Literatura', teacher: 'Prof. Lucía Peña', grade: 10, color: '#34C759', icon: 'library' },
-  { id: 'm5', name: 'Inglés III', teacher: 'Prof. Kevin White', grade: 8.8, color: '#007AFF', icon: 'language' },
-];
+const getGradeColor = (grade: number) => {
+  if (grade >= 9) return '#34C759';
+  if (grade >= 7) return '#FF9500';
+  return '#FF3B30';
+};
 
 export default function SubjectsScreen() {
   const { theme } = useTheme();
-  const [subjects, setSubjects] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchSubjects = async () => {
-    try {
-      const response = await api.get('/projects');
-      if (response.data && response.data.length > 0) {
-        setSubjects(response.data);
-      } else {
-        setSubjects(MOCK_SUBJECTS);
-      }
-    } catch (error) {
-      setSubjects(MOCK_SUBJECTS);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchSubjects();
-    }, [])
-  );
-
-  const getGradeColor = (grade: number) => {
-    if (grade >= 9) return '#34C759';
-    if (grade >= 7) return '#FF9500';
-    return '#FF3B30';
-  };
+  const { data: subjects, isLoading, isError, error, refetch } = useProjects();
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -69,8 +38,21 @@ export default function SubjectsScreen() {
           <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>Ciclo Escolar 2026 - Activo</Text>
         </View>
 
-        {loading ? (
-          <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
+        {isLoading ? (
+          <SkeletonLoader rows={5} variant="list-item" style={styles.listContent} />
+        ) : isError ? (
+          <ErrorState
+            error={error}
+            onRetry={() => refetch()}
+            style={styles.stateContainer}
+          />
+        ) : !subjects || subjects.length === 0 ? (
+          <EmptyState
+            icon="school-outline"
+            title="Sin materias"
+            message="No tienes materias asignadas en este momento. Contacta a tu institución para más información."
+            style={styles.stateContainer}
+          />
         ) : (
           <FlatList
             data={subjects}
@@ -87,17 +69,19 @@ export default function SubjectsScreen() {
                   ]}
                 >
                   <View style={[styles.iconBox, { backgroundColor: (item.color || theme.colors.primary) + '15' }]}>
-                    <Ionicons name={(item.icon || 'journal') as any} size={24} color={item.color || theme.colors.primary} />
+                    <Ionicons name="journal" size={24} color={item.color || theme.colors.primary} />
                   </View>
                   
                   <View style={styles.subjectInfo}>
                     <Text style={[styles.subjectName, { color: theme.colors.text }]}>{item.name}</Text>
-                    <Text style={[styles.teacherName, { color: theme.colors.textSecondary }]}>{item.teacher || 'Docente Titular'}</Text>
+                    <Text style={[styles.teacherName, { color: theme.colors.textSecondary }]}>
+                      {item.tasksCount} tareas · {item.completedTasks} completadas
+                    </Text>
                   </View>
 
-                  <View style={[styles.gradeBadge, { backgroundColor: getGradeColor(item.grade || 0) + '15' }]}>
-                    <Text style={[styles.gradeText, { color: getGradeColor(item.grade || 0) }]}>
-                      {(item.grade || 0).toFixed(1)}
+                  <View style={styles.progressContainer}>
+                    <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
+                      {item.progress}%
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={theme.colors.border} style={{ marginLeft: 10 }} />
@@ -118,6 +102,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
   headerSubtitle: { fontSize: 14, fontWeight: '600' },
   listContent: { paddingHorizontal: 25, paddingBottom: 40 },
+  stateContainer: { flex: 1, paddingHorizontal: 25 },
   subjectCard: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -138,12 +123,12 @@ const styles = StyleSheet.create({
   subjectInfo: { flex: 1 },
   subjectName: { fontSize: 16, fontWeight: '800', marginBottom: 2 },
   teacherName: { fontSize: 13, fontWeight: '600' },
-  gradeBadge: { 
-    paddingHorizontal: 10, 
-    paddingVertical: 6, 
+  progressContainer: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 12,
     minWidth: 45,
-    alignItems: 'center'
+    alignItems: 'center',
   },
-  gradeText: { fontSize: 14, fontWeight: '800' },
+  progressText: { fontSize: 14, fontWeight: '800' },
 });

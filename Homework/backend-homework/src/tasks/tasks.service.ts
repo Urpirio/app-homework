@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { NotificationType, Prisma, TaskType } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationType, TaskType } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class TasksService {
@@ -126,4 +126,177 @@ export class TasksService {
       where: { id },
     });
   }
+
+
+    /**
+     * Get paginated tasks within a unit, with optional status and deadline filtering.
+     * Returns tasks with submission counts for display in the unit detail view.
+     */
+    async getUnitTasks(
+      unitId: string,
+      options: {
+        page?: number;
+        limit?: number;
+        status?: string;
+        deadlineBefore?: string;
+        deadlineAfter?: string;
+      } = {},
+    ) {
+      const { page = 1, limit = 15, status, deadlineBefore, deadlineAfter } = options;
+
+      // Verify the unit exists
+      const unit = await this.prisma.unit.findUnique({
+        where: { id: unitId },
+      });
+
+      if (!unit) {
+        throw new NotFoundException('Unidad no encontrada');
+      }
+
+      // Build where clause
+      const where: Prisma.TaskWhereInput = {
+        unitId,
+      };
+
+      // Apply optional status filter
+      if (status) {
+        where.status = status.toUpperCase().replace(/-/g, '_') as any;
+      }
+
+      // Apply optional deadline filters
+      if (deadlineBefore || deadlineAfter) {
+        where.dueDate = {};
+        if (deadlineBefore) {
+          where.dueDate.lte = new Date(deadlineBefore);
+        }
+        if (deadlineAfter) {
+          where.dueDate.gte = new Date(deadlineAfter);
+        }
+      }
+
+      const [tasks, total] = await Promise.all([
+        this.prisma.task.findMany({
+          where,
+          include: {
+            _count: { select: { submissions: true } },
+          },
+          skip: (page - 1) * limit,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.task.count({ where }),
+      ]);
+
+      return {
+        data: tasks.map((task) => ({
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          type: task.type,
+          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+          maxGrade: task.maxGrade,
+          submissionCount: task._count.submissions,
+        })),
+        total,
+        page,
+        limit,
+      };
+    }
+
+    /**
+     * Get tasks for calendar view within a date range, filtered by user role.
+     * - STUDENT: tasks from projects in the student's classroom (project.classroomId = user.classroomId)
+     * - TEACHER: tasks from projects the teacher owns or is a member of
+     * - SUPER_ADMIN / SCHOOL_ADMIN: all tasks within their institution scope
+     */
+    async getCalendarTasks(
+      userId: string,
+      role: string,
+      options: {
+        startDate?: string;
+        endDate?: string;
+      } = {},
+    ) {
+      const { startDate, endDate } = options;
+
+      // Build the dueDate filter
+      const dueDateFilter: Prisma.DateTimeNullableFilter = {};
+      if (startDate) {
+        dueDateFilter.gte = new Date(startDate);
+      }
+      if (endDate) {
+        dueDateFilter.lte = new Date(endDate);
+      }
+
+      // Build role-based project filter
+      let projectFilter: Prisma.ProjectWhereInput;
+
+      switch (role) {
+        case 'STUDENT': {
+          // Look up the student's classroomId
+          const student = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { classroomId: true },
+          });
+          projectFilter = student?.classroomId
+            ? { classroomId: student.classroomId }
+            : { id: '__none__' }; // No classroom = no tasks
+          break;
+        }
+        case 'TEACHER': {
+          // Tasks from projects the teacher owns or is a member of
+          projectFilter = {
+            OR: [
+              { userId },
+              { members: { some: { userId } } },
+            ],
+          };
+          break;
+        }
+        case 'SUPER_ADMIN':
+        case 'SCHOOL_ADMIN': {
+          // All tasks within the admin's institution
+          const admin = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { institutionId: true },
+          });
+          projectFilter = admin?.institutionId
+            ? { institutionId: admin.institutionId }
+            : {};
+          break;
+        }
+        default: {
+          projectFilter = { id: '__none__' };
+          break;
+        }
+      }
+
+      const where: Prisma.TaskWhereInput = {
+        dueDate: Object.keys(dueDateFilter).length > 0 ? dueDateFilter : { not: null },
+        project: projectFilter,
+      };
+
+      const tasks = await this.prisma.task.findMany({
+        where,
+        include: {
+          project: {
+            select: { name: true, color: true },
+          },
+        },
+        orderBy: { dueDate: 'asc' },
+      });
+
+      return {
+        tasks: tasks.map((task) => ({
+          id: task.id,
+          title: task.title,
+          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+          status: task.status,
+          projectName: task.project.name,
+          projectColor: task.project.color,
+        })),
+      };
+    }
+
+
 }

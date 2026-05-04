@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
-import { TasksService } from './tasks.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TasksService } from './tasks.service';
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard)
@@ -11,6 +11,18 @@ export class TasksController {
   @Post()
   create(@Request() req: any, @Body() createTaskDto: Prisma.TaskUncheckedCreateInput) {
     return this.tasksService.create(req.user.userId, createTaskDto);
+  }
+
+  @Get('calendar')
+  getCalendarTasks(
+    @Request() req: any,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.tasksService.getCalendarTasks(req.user.userId, req.user.role, {
+      startDate,
+      endDate,
+    });
   }
 
   @Get('project/:projectId')

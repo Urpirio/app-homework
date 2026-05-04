@@ -1,30 +1,30 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
+import { ClassroomModal } from '@/components/login/ClassroomModal';
+import { UserRegistrationModal } from '@/components/login/UserRegistrationModal';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
-import { Ionicons } from '@expo/vector-icons';
-import React, { useState, useCallback } from 'react';
-import { 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  View, 
-  Dimensions, 
-  Pressable,
-  ActivityIndicator,
-  FlatList
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { router, useFocusEffect } from 'expo-router';
-import api from '@/utils/api';
 import { UserRole } from '@/types/auth';
-import { UserRegistrationModal } from '@/components/login/UserRegistrationModal';
-import { ClassroomModal } from '@/components/login/ClassroomModal';
+import api from '@/utils/api';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import {
+    ActivityIndicator,
+    Dimensions,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View
+} from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function AdminDashboard() {
   const { theme } = useTheme();
+  const { institutionId: contextInstitutionId, setInstitutionId } = useInstitution();
   const [user, setUser] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -37,9 +37,12 @@ export default function AdminDashboard() {
       const profileRes = await api.get('/auth/profile');
       setUser(profileRes.data);
       
-      if (profileRes.data.institutionId) {
-        const statsRes = await api.get(`/institutions/${profileRes.data.institutionId}/stats`);
-        setStats(statsRes.data);
+      // SCHOOL_ADMIN: fix institutionId from profile (no selector shown)
+      if (
+        profileRes.data.role === UserRole.SCHOOL_ADMIN &&
+        profileRes.data.institutionId
+      ) {
+        setInstitutionId(profileRes.data.institutionId);
       }
     } catch (error) {
       console.error('Error fetching admin data:', error);
@@ -47,6 +50,32 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   };
+
+  // Fetch stats whenever the contextInstitutionId changes
+  useEffect(() => {
+    if (!contextInstitutionId) return;
+
+    let cancelled = false;
+
+    async function fetchStats() {
+      try {
+        const statsRes = await api.get(
+          `/institutions/${contextInstitutionId}/stats`
+        );
+        if (!cancelled) {
+          setStats(statsRes.data);
+        }
+      } catch (error) {
+        console.error('Error fetching institution stats:', error);
+      }
+    }
+
+    fetchStats();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [contextInstitutionId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -98,6 +127,11 @@ export default function AdminDashboard() {
               </Text>
             </View>
 
+            {/* Institution selector — only shown for SUPER_ADMIN */}
+            {user?.role === UserRole.SUPER_ADMIN && (
+              <InstitutionSelector />
+            )}
+
             {/* Stats Overview */}
             <View style={styles.statsGrid}>
               <StatItem 
@@ -137,6 +171,13 @@ export default function AdminDashboard() {
                 icon="people"
                 color={theme.colors.primary}
                 onPress={() => router.push('/admin/users')}
+              />
+              <AdminAction 
+                title="Analíticas" 
+                subtitle="Métricas, gráficas e indicadores"
+                icon="analytics"
+                color="#5856D6"
+                onPress={() => router.push('/admin/analytics')}
               />
             </View>
 

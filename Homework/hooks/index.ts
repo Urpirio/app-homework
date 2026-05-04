@@ -16,3 +16,9 @@ export type { UseAnimatedTransitionReturn } from './useAnimatedTransition';
 export { useFormValidation } from './useFormValidation';
 export type { UseFormValidationReturn, ValidationRules } from './useFormValidation';
 
+export { buildDraftKey, useDraftAutoSave } from './useDraftAutoSave';
+export type { UseDraftAutoSaveOptions, UseDraftAutoSaveReturn } from './useDraftAutoSave';
+
+export { usePreventNavigation } from './usePreventNavigation';
+export type { UsePreventNavigationOptions } from './usePreventNavigation';
+

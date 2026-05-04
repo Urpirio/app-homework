@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
-import { ReviewsService } from './reviews.service';
+import { Body, Controller, Get, Param, Post, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ReviewsService } from './reviews.service';
 
 @Controller('reviews')
 @UseGuards(JwtAuthGuard)
@@ -20,5 +20,10 @@ export class ReviewsController {
   @Get('technician/:id/stats')
   getStats(@Param('id') id: string) {
     return this.reviewsService.getAverageRating(id);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.reviewsService.findOne(id);
   }
 }

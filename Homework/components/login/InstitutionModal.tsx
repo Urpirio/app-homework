@@ -1,14 +1,14 @@
+import { useCreateInstitution } from '@/hooks/api/useInstitutions';
+import { useFileUpload } from '@/hooks/api/useUploads';
 import { useTheme } from '@/hooks/useTheme';
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView } from 'react-native';
-import { BaseModal } from '../shared/BaseModal';
-import { AnimatedInput } from './AnimatedInput';
-import { AnimatedButton } from './AnimatedButton';
-import api from '@/utils/api';
-import Toast from 'react-native-toast-message';
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Image, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import React, { useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Toast from 'react-native-toast-message';
+import { BaseModal } from '../shared/BaseModal';
+import { AnimatedButton } from './AnimatedButton';
+import { AnimatedInput } from './AnimatedInput';
 
 interface InstitutionModalProps {
   visible: boolean;
@@ -20,51 +20,70 @@ export const InstitutionModal = ({ visible, onClose, onSuccess }: InstitutionMod
   const { theme } = useTheme();
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
-  const [logo, setLogo] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [logoUri, setLogoUri] = useState<string | null>(null);
+
+  const createMutation = useCreateInstitution();
+  const { upload, progress, isUploading, reset: resetUpload } = useFileUpload();
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.8,
     });
 
     if (!result.canceled) {
-      setLogo(result.assets[0].uri);
+      setLogoUri(result.assets[0].uri);
     }
   };
 
+  const resetForm = () => {
+    setName('');
+    setAddress('');
+    setLogoUri(null);
+    resetUpload();
+  };
+
   const handleCreate = async () => {
-    if (!name) {
+    if (!name.trim()) {
       Toast.show({ type: 'error', text1: 'Error', text2: 'El nombre es obligatorio' });
       return;
     }
 
-    setLoading(true);
     try {
-      await api.post('/institutions', {
-        name,
-        address,
-        logoUrl: logo,
+      let logoUrl: string | undefined;
+
+      // Upload logo if selected
+      if (logoUri) {
+        const uploadResult = await upload({
+          uri: logoUri,
+          name: `institution-logo-${Date.now()}.jpg`,
+          mimeType: 'image/jpeg',
+        });
+        logoUrl = uploadResult.fileUrl;
+      }
+
+      await createMutation.mutateAsync({
+        name: name.trim(),
+        address: address.trim() || undefined,
+        logoUrl,
       });
+
       Toast.show({ type: 'success', text1: 'Éxito', text2: 'Institución creada correctamente' });
+      resetForm();
       onSuccess?.();
       onClose();
-      setName('');
-      setAddress('');
-      setLogo(null);
     } catch (error: any) {
-      Toast.show({ 
-        type: 'error', 
-        text1: 'Error', 
-        text2: error.response?.data?.message || 'No se pudo crear la institución' 
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error?.response?.data?.message || 'No se pudo crear la institución',
       });
-    } finally {
-      setLoading(false);
     }
   };
+
+  const isSaving = createMutation.isPending || isUploading;
 
   return (
     <BaseModal visible={visible} onClose={onClose}>
@@ -81,7 +100,7 @@ export const InstitutionModal = ({ visible, onClose, onSuccess }: InstitutionMod
             placeholder="Nombre de la Institución"
             icon="business-outline"
           />
-          
+
           <AnimatedInput
             value={address}
             onChangeText={setAddress}
@@ -89,29 +108,49 @@ export const InstitutionModal = ({ visible, onClose, onSuccess }: InstitutionMod
             icon="location-outline"
           />
 
-          <Pressable 
-            onPress={pickImage} 
+          <Pressable
+            onPress={pickImage}
             style={[styles.logoSelector, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+            accessibilityRole="button"
+            accessibilityLabel="Seleccionar logo de la institución"
           >
-            {logo ? (
-              <Image source={{ uri: logo }} style={styles.logoPreview} />
+            {logoUri ? (
+              <Image source={{ uri: logoUri }} style={styles.logoPreview} />
             ) : (
               <View style={styles.placeholderContainer}>
                 <Ionicons name="camera-outline" size={32} color={theme.colors.textSecondary} />
-                <Text style={[styles.placeholderText, { color: theme.colors.textSecondary }]}>Logo de la institución</Text>
+                <Text style={[styles.placeholderText, { color: theme.colors.textSecondary }]}>
+                  Logo de la institución
+                </Text>
               </View>
             )}
             <View style={[styles.editBadge, { backgroundColor: theme.colors.primary }]}>
               <Ionicons name="add" size={20} color="#FFF" />
             </View>
           </Pressable>
+
+          {isUploading && (
+            <View style={styles.progressContainer}>
+              <View style={[styles.progressBar, { backgroundColor: theme.colors.border + '30' }]}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { backgroundColor: theme.colors.primary, width: `${progress}%` },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
+                Subiendo logo... {progress}%
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.buttonContainer}>
           <AnimatedButton
-            title="Crear Institución"
+            title={isSaving ? 'Creando...' : 'Crear Institución'}
             onPress={handleCreate}
-            loading={loading}
+            loading={isSaving}
           />
         </View>
       </ScrollView>
@@ -133,21 +172,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     position: 'relative',
-    overflow: 'hidden'
+    overflow: 'hidden',
   },
-  logoPreview: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 24
-  },
-  placeholderContainer: {
-    alignItems: 'center',
-    gap: 8
-  },
-  placeholderText: {
-    fontSize: 13,
-    fontWeight: '600'
-  },
+  logoPreview: { width: '100%', height: '100%', borderRadius: 24 },
+  placeholderContainer: { alignItems: 'center', gap: 8 },
+  placeholderText: { fontSize: 13, fontWeight: '600' },
   editBadge: {
     position: 'absolute',
     bottom: 10,
@@ -158,6 +187,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#FFF'
-  }
+    borderColor: '#FFF',
+  },
+  progressContainer: { alignItems: 'center', marginTop: 4 },
+  progressBar: { width: '100%', height: 6, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 3 },
+  progressText: { fontSize: 12, marginTop: 4 },
 });

@@ -1,9 +1,10 @@
-import { Controller, Get, Param, UseGuards, NotFoundException } from '@nestjs/common';
-import { UsersService } from './users.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
+import { Body, Controller, Get, NotFoundException, Param, Put, Query, Request, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { NotificationPreferencesDto } from './dto/notification-preferences.dto';
+import { UsersService } from './users.service';
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -26,10 +27,62 @@ export class UsersController {
     return profile;
   }
 
+  @Get('teachers/:id/students')
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN, Role.TEACHER)
+  async getTeacherStudents(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('classroomId') classroomId?: string,
+  ) {
+    return this.usersService.getTeacherStudents(id, {
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      classroomId,
+    });
+  }
+
+  @Get('teachers/:id/subjects')
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN, Role.TEACHER)
+  async getTeacherSubjects(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.usersService.getTeacherSubjects(id, {
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
   @Get('users/:id/tickets')
-  async getUserTickets(@Param('id') id: string) {
-    // This could be moved to TicketsController if preferred, 
-    // but the docs mention GET /users/{id}/tickets
-    // For now, let's keep it consistent with docs
+  async getUserTickets(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('category') category?: string,
+    @Query('priority') priority?: string,
+  ) {
+    return this.usersService.getUserTickets(id, {
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      status,
+      category,
+      priority,
+    });
+  }
+
+  @Get('user/notification-preferences')
+  async getNotificationPreferences(@Request() req: any) {
+    return this.usersService.getNotificationPreferences(req.user.userId);
+  }
+
+  @Put('user/notification-preferences')
+  async updateNotificationPreferences(
+    @Request() req: any,
+    @Body() preferences: NotificationPreferencesDto,
+  ) {
+    return this.usersService.updateNotificationPreferences(req.user.userId, preferences);
   }
 }

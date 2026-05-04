@@ -1,6 +1,5 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ReviewsService {
@@ -29,6 +28,35 @@ export class ReviewsService {
     });
   }
 
+  async findOne(id: string) {
+    const review = await this.prisma.review.findUnique({
+      where: { id },
+      include: {
+        ticket: {
+          select: {
+            id: true,
+            title: true,
+            category: true,
+            status: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    if (!review) {
+      throw new NotFoundException('Reseña no encontrada');
+    }
+
+    return review;
+  }
+
   async findAllForTechnician(technicianId: string) {
     return this.prisma.review.findMany({
       where: {
@@ -40,6 +68,7 @@ export class ReviewsService {
       },
     });
   }
+
 
   async getAverageRating(technicianId: string) {
     const result = await this.prisma.review.aggregate({
