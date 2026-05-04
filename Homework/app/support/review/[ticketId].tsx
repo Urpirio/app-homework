@@ -13,19 +13,19 @@ import { ErrorState, SkeletonLoader } from '@/components/shared';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useProfile } from '@/hooks/api/useAuth';
 import { useCreateReview } from '@/hooks/api/useReviews';
-import { useTicketDetail } from '@/hooks/api/useTickets';
+import { useTicketDetail, useUpdateTicket } from '@/hooks/api/useTickets';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,12 +37,21 @@ const FEEDBACK_CATEGORIES = [
   { key: 'communication', label: 'Comunicación', icon: 'chatbubbles-outline' as const },
 ];
 
+const STATUS_LABELS: Record<string, string> = {
+  OPEN: 'Abierto',
+  IN_PROGRESS: 'En Proceso',
+  RESOLVED: 'Resuelto',
+  CLOSED: 'Cerrado',
+};
+
 export default function TicketReviewScreen() {
   const { ticketId } = useLocalSearchParams<{ ticketId: string }>();
   const router = useRouter();
   const { theme } = useTheme();
   const { data: profile } = useProfile();
   const createReview = useCreateReview();
+  const updateTicket = useUpdateTicket();
+  const isSupport = profile?.role === 'SUPPORT' || profile?.role === 'SUPER_ADMIN' || profile?.role === 'SCHOOL_ADMIN';
 
   const {
     data: ticket,
@@ -56,6 +65,7 @@ export default function TicketReviewScreen() {
   const [comment, setComment] = useState('');
   const [feedbackToggles, setFeedbackToggles] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const toggleFeedback = (key: string) => {
     setFeedbackToggles((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -133,6 +143,113 @@ export default function TicketReviewScreen() {
             </Text>
           </View>
           <ErrorState error={error as any} onRetry={() => refetch()} />
+        </ThemedView>
+      </SafeAreaView>
+    );
+  }
+
+  const handleChangeStatus = async (newStatus: string) => {
+    setUpdatingStatus(true);
+    try {
+      await updateTicket.mutateAsync({ ticketId: ticketId!, payload: { status: newStatus } });
+      await refetch();
+      Toast.show({ type: 'success', text1: 'Estado actualizado', text2: `Ticket marcado como ${STATUS_LABELS[newStatus] ?? newStatus}` });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Error al actualizar estado' });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  // If ticket is not resolved/closed yet, show ticket detail only (no rating form)
+  const canReview = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
+
+  if (!canReview) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+        <ThemedView style={styles.container}>
+          <BackgroundShapes />
+          <View style={styles.header}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+            </Pressable>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Detalle del Ticket</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <Animated.View entering={FadeInDown.duration(400)} style={[styles.ticketSummary, { backgroundColor: theme.colors.card }]}>
+              <Text style={[styles.ticketSummaryLabel, { color: theme.colors.textSecondary }]}>
+                #{ticketId?.slice(0, 8).toUpperCase()} · {ticket.category}
+              </Text>
+              <Text style={[styles.ticketSummaryTitle, { color: theme.colors.text }]}>{ticket.title}</Text>
+              <View style={[styles.statusPill, {
+                backgroundColor: ticket.status === 'OPEN' ? '#34C75920' : ticket.status === 'IN_PROGRESS' ? '#FF950020' : '#00000010',
+                marginTop: 10,
+              }]}>
+                <Text style={[styles.statusPillText, {
+                  color: ticket.status === 'OPEN' ? '#34C759' : ticket.status === 'IN_PROGRESS' ? '#FF9500' : theme.colors.textSecondary,
+                }]}>
+                  {ticket.status === 'OPEN' ? 'Abierto' : ticket.status === 'IN_PROGRESS' ? 'En proceso' : ticket.status}
+                </Text>
+              </View>
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(100)} style={[styles.ticketSummary, { backgroundColor: theme.colors.card }]}>
+              <Text style={[styles.ticketSummaryLabel, { color: theme.colors.textSecondary }]}>Descripción</Text>
+              <Text style={[{ color: theme.colors.text, fontSize: 14, lineHeight: 22, marginTop: 6 }]}>{ticket.description}</Text>
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(200)} style={[styles.ticketSummary, { backgroundColor: theme.colors.card }]}>
+              <Text style={[styles.ticketSummaryLabel, { color: theme.colors.textSecondary }]}>Creado el</Text>
+              <Text style={[{ color: theme.colors.text, fontSize: 14, marginTop: 4 }]}>
+                {new Date(ticket.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </Text>
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(300)} style={[styles.infoNotice, { backgroundColor: theme.colors.card }]}>
+              <Ionicons name="information-circle-outline" size={20} color={theme.colors.textSecondary} />
+              <Text style={[styles.infoNoticeText, { color: theme.colors.textSecondary }]}>
+                Podrás calificar el servicio una vez que el ticket sea resuelto o cerrado.
+              </Text>
+            </Animated.View>
+
+            {/* Status management for SUPPORT role */}
+            {isSupport && (
+              <Animated.View entering={FadeInDown.delay(400)} style={[styles.ticketSummary, { backgroundColor: theme.colors.card }]}>
+                <Text style={[styles.ticketSummaryLabel, { color: theme.colors.textSecondary }]}>Cambiar Estado</Text>
+                <View style={styles.statusBtns}>
+                  {ticket.status !== 'IN_PROGRESS' && (
+                    <Pressable
+                      onPress={() => handleChangeStatus('IN_PROGRESS')}
+                      disabled={updatingStatus}
+                      style={[styles.statusBtn, { backgroundColor: '#FF950020', borderColor: '#FF9500' }]}
+                    >
+                      <Ionicons name="play-circle-outline" size={16} color="#FF9500" />
+                      <Text style={[styles.statusBtnText, { color: '#FF9500' }]}>En Proceso</Text>
+                    </Pressable>
+                  )}
+                  {ticket.status !== 'RESOLVED' && (
+                    <Pressable
+                      onPress={() => handleChangeStatus('RESOLVED')}
+                      disabled={updatingStatus}
+                      style={[styles.statusBtn, { backgroundColor: '#34C75920', borderColor: '#34C759' }]}
+                    >
+                      <Ionicons name="checkmark-circle-outline" size={16} color="#34C759" />
+                      <Text style={[styles.statusBtnText, { color: '#34C759' }]}>Resolver</Text>
+                    </Pressable>
+                  )}
+                  {ticket.status !== 'CLOSED' && (
+                    <Pressable
+                      onPress={() => handleChangeStatus('CLOSED')}
+                      disabled={updatingStatus}
+                      style={[styles.statusBtn, { backgroundColor: '#8E8E9320', borderColor: '#8E8E93' }]}
+                    >
+                      <Ionicons name="lock-closed-outline" size={16} color="#8E8E93" />
+                      <Text style={[styles.statusBtnText, { color: '#8E8E93' }]}>Cerrar</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </Animated.View>
+            )}
+            <View style={{ height: 40 }} />
+          </ScrollView>
         </ThemedView>
       </SafeAreaView>
     );
@@ -426,4 +543,31 @@ const styles = StyleSheet.create({
   },
   alreadyReviewedTitle: { fontSize: 18, fontWeight: '800' },
   existingComment: { fontSize: 14, fontStyle: 'italic', textAlign: 'center', marginTop: 8 },
+  statusPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  statusPillText: { fontSize: 12, fontWeight: '800' },
+  infoNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 16,
+    borderRadius: 16,
+    marginTop: 4,
+  },
+  infoNoticeText: { flex: 1, fontSize: 13, lineHeight: 20 },
+  statusBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  statusBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  statusBtnText: { fontSize: 13, fontWeight: '700' },
 });

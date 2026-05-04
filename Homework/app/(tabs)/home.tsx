@@ -42,7 +42,14 @@ export default function HomeScreen() {
   const fetchData = async () => {
     try {
       const profileRes = await api.get('/auth/profile');
-      setUser(profileRes.data);
+      const profile = profileRes.data;
+      setUser(profile);
+
+      // Redirect SUPPORT role to their dashboard
+      if (profile.role === 'SUPPORT') {
+        router.replace('/support/dashboard');
+        return;
+      }
 
       const projectsRes = await api.get('/projects');
       const projects = projectsRes.data || [];

@@ -1,18 +1,18 @@
+import { useCalendarBadge } from '@/hooks/useCalendarBadge';
 import { useNotificationBadge } from '@/hooks/useNotificationBadge';
 import { useRouteGuard } from '@/hooks/useRouteGuard';
 import { useTheme } from '@/hooks/useTheme';
 import api from '@/utils/api';
 import {
-    handleInitialNotification,
-    removeNotificationResponseListener,
-    setupNotificationResponseListener,
+  handleInitialNotification,
+  removeNotificationResponseListener,
+  setupNotificationResponseListener,
 } from '@/utils/notificationHandler';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
-import { useCalendarBadge } from '@/hooks/useCalendarBadge';
 
 export default function TabLayout() {
   const { theme, isDark } = useTheme();
@@ -74,13 +74,15 @@ export default function TabLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Inicio',
+          title: role === 'SUPPORT' ? 'Soporte' : 'Inicio',
           tabBarBadge: notificationBadge > 0 ? notificationBadge : undefined,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons 
-              name={focused ? 'home' : 'home-outline'} 
-              size={size} 
-              color={color} 
+            <Ionicons
+              name={role === 'SUPPORT'
+                ? (focused ? 'headset' : 'headset-outline')
+                : (focused ? 'home' : 'home-outline')}
+              size={size}
+              color={color}
             />
           ),
         }}

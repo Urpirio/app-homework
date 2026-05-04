@@ -5,7 +5,7 @@ import api from '@/utils/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
@@ -19,6 +19,8 @@ import {
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -56,9 +58,12 @@ export default function SupportScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchTickets();
-  }, []);
+  // Refetch every time the screen gains focus (e.g. after creating a ticket)
+  useFocusEffect(
+    useCallback(() => {
+      fetchTickets();
+    }, [])
+  );
 
   const handleCreateTicket = async () => {
     if (!newTicket.subject || !newTicket.description) {
@@ -153,15 +158,37 @@ export default function SupportScreen() {
                 <Text style={{ color: theme.colors.textSecondary, textAlign: 'center' }}>No tienes tickets activos.</Text>
               ) : (
                 tickets.map((ticket) => (
-                  <View key={ticket.id} style={[styles.ticketCard, { backgroundColor: theme.colors.card }]}>
+                  <Pressable
+                    key={ticket.id}
+                    onPress={() => router.push(`/support/review/${ticket.id}`)}
+                    style={({ pressed }) => [
+                      styles.ticketCard,
+                      { backgroundColor: theme.colors.card, opacity: pressed ? 0.7 : 1 }
+                    ]}
+                  >
                     <View style={styles.ticketHeader}>
-                      <Text style={[styles.ticketSubject, { color: theme.colors.text }]}>{ticket.subject}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: ticket.status === 'OPEN' ? theme.colors.success + '20' : theme.colors.border }]}>
-                        <Text style={[styles.statusText, { color: ticket.status === 'OPEN' ? theme.colors.success : theme.colors.textSecondary }]}>{ticket.status}</Text>
+                      <Text style={[styles.ticketSubject, { color: theme.colors.text }]} numberOfLines={1}>
+                        {ticket.title || ticket.subject || 'Sin título'}
+                      </Text>
+                      <View style={[
+                        styles.statusBadge,
+                        { backgroundColor: ticket.status === 'OPEN' ? '#34C75920' : ticket.status === 'IN_PROGRESS' ? '#FF950020' : '#00000010' }
+                      ]}>
+                        <Text style={[
+                          styles.statusText,
+                          { color: ticket.status === 'OPEN' ? '#34C759' : ticket.status === 'IN_PROGRESS' ? '#FF9500' : theme.colors.textSecondary }
+                        ]}>
+                          {ticket.status === 'OPEN' ? 'Abierto' : ticket.status === 'IN_PROGRESS' ? 'En proceso' : ticket.status === 'RESOLVED' ? 'Resuelto' : ticket.status}
+                        </Text>
                       </View>
                     </View>
-                    <Text style={[styles.ticketDate, { color: theme.colors.textSecondary }]}>{new Date(ticket.createdAt).toLocaleDateString()}</Text>
-                  </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={[styles.ticketDate, { color: theme.colors.textSecondary }]}>
+                        {new Date(ticket.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={14} color={theme.colors.border} />
+                    </View>
+                  </Pressable>
                 ))
               )}
             </Animated.View>

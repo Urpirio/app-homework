@@ -21,16 +21,16 @@ import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
     Dimensions,
+    Modal,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
-    View,
+    View
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
@@ -85,6 +85,11 @@ export default function CreateTicketScreen() {
   const [attachment, setAttachment] = useState<AttachmentFile | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [successModal, setSuccessModal] = useState<{ visible: boolean; ticketId: string; expectedTime: string }>({
+    visible: false,
+    ticketId: '',
+    expectedTime: '',
+  });
 
   const form = useForm(ticketSchema, INITIAL_VALUES);
 
@@ -170,18 +175,23 @@ export default function CreateTicketScreen() {
         ...(fileUrl ? { fileUrl } : {}),
       });
 
+      // Reset form state
+      form.reset();
+      setAttachment(null);
+      setUploadedFileUrl(null);
+      setPriority('Medium');
+      fileUpload.reset();
       await clearDraft();
 
-      // Show confirmation with tracking info
       const expectedTime = priority === 'Critical' ? '1 hora' :
         priority === 'High' ? '2 horas' :
         priority === 'Medium' ? '24 horas' : '48 horas';
 
-      Alert.alert(
-        'Ticket Creado',
-        `Tu ticket ha sido creado exitosamente.\n\nNúmero de seguimiento: #${ticket.id.slice(0, 8).toUpperCase()}\nTiempo estimado de respuesta: ${expectedTime}`,
-        [{ text: 'Aceptar', onPress: () => router.back() }]
-      );
+      setSuccessModal({
+        visible: true,
+        ticketId: ticket.id.slice(0, 8).toUpperCase(),
+        expectedTime,
+      });
     } catch (error: any) {
       Toast.show({
         type: 'error',
@@ -415,6 +425,78 @@ export default function CreateTicketScreen() {
 
           <View style={{ height: 40 }} />
         </ScrollView>
+
+        {/* ── Success Modal ── */}
+        <Modal
+          visible={successModal.visible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {}}
+        >
+          <View style={styles.modalOverlay}>
+            <Animated.View entering={FadeInUp.springify().damping(18)} style={[styles.modalCard, { backgroundColor: theme.colors.card }]}>
+
+              <Animated.View entering={ZoomIn.delay(200).springify()} style={[styles.successIconRing, { backgroundColor: '#34C75918' }]}>
+                <View style={[styles.successIconInner, { backgroundColor: '#34C75930' }]}>
+                  <Ionicons name="checkmark" size={36} color="#34C759" />
+                </View>
+              </Animated.View>
+
+              <Animated.View entering={FadeInDown.delay(300)}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>¡Ticket Enviado!</Text>
+                <Text style={[styles.modalSubtitle, { color: theme.colors.textSecondary }]}>
+                  Tu solicitud fue recibida y está siendo procesada.
+                </Text>
+              </Animated.View>
+
+              <Animated.View entering={FadeInDown.delay(400)} style={[styles.trackingCard, { backgroundColor: theme.colors.background }]}>
+                <View style={styles.trackingRow}>
+                  <View style={[styles.trackingIconBox, { backgroundColor: theme.colors.primary + '18' }]}>
+                    <Ionicons name="ticket-outline" size={18} color={theme.colors.primary} />
+                  </View>
+                  <View style={styles.trackingInfo}>
+                    <Text style={[styles.trackingLabel, { color: theme.colors.textSecondary }]}>Número de seguimiento</Text>
+                    <Text style={[styles.trackingValue, { color: theme.colors.text }]}>#{successModal.ticketId}</Text>
+                  </View>
+                </View>
+                <View style={[styles.trackingDivider, { backgroundColor: theme.colors.border }]} />
+                <View style={styles.trackingRow}>
+                  <View style={[styles.trackingIconBox, { backgroundColor: '#FF950018' }]}>
+                    <Ionicons name="time-outline" size={18} color="#FF9500" />
+                  </View>
+                  <View style={styles.trackingInfo}>
+                    <Text style={[styles.trackingLabel, { color: theme.colors.textSecondary }]}>Tiempo estimado de respuesta</Text>
+                    <Text style={[styles.trackingValue, { color: theme.colors.text }]}>{successModal.expectedTime}</Text>
+                  </View>
+                </View>
+                <View style={[styles.trackingDivider, { backgroundColor: theme.colors.border }]} />
+                <View style={styles.trackingRow}>
+                  <View style={[styles.trackingIconBox, { backgroundColor: '#34C75918' }]}>
+                    <Ionicons name="notifications-outline" size={18} color="#34C759" />
+                  </View>
+                  <View style={styles.trackingInfo}>
+                    <Text style={[styles.trackingLabel, { color: theme.colors.textSecondary }]}>Notificaciones</Text>
+                    <Text style={[styles.trackingValue, { color: theme.colors.text }]}>Recibirás actualizaciones por notificación</Text>
+                  </View>
+                </View>
+              </Animated.View>
+
+              <Animated.View entering={FadeInDown.delay(500)} style={{ width: '100%' }}>
+                <Pressable
+                  onPress={() => {
+                    setSuccessModal({ visible: false, ticketId: '', expectedTime: '' });
+                    router.replace('/support');
+                  }}
+                  style={[styles.modalPrimaryBtn, { backgroundColor: theme.colors.primary }]}
+                >
+                  <Text style={styles.modalPrimaryBtnText}>Ver mis tickets</Text>
+                </Pressable>
+              </Animated.View>
+
+            </Animated.View>
+          </View>
+        </Modal>
+
       </ThemedView>
     </SafeAreaView>
   );
@@ -527,6 +609,82 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   submitBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+
+  // Success modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 32,
+    padding: 28,
+    alignItems: 'center',
+    gap: 20,
+  },
+  successIconRing: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  successIconInner: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  trackingCard: {
+    width: '100%',
+    borderRadius: 20,
+    padding: 4,
+    overflow: 'hidden',
+  },
+  trackingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 14,
+  },
+  trackingIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trackingInfo: { flex: 1 },
+  trackingLabel: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
+  trackingValue: { fontSize: 14, fontWeight: '800' },
+  trackingDivider: { height: 1, marginHorizontal: 14 },
+  modalPrimaryBtn: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 18,
+    alignItems: 'center',
+  },
+  modalPrimaryBtnText: {
     color: '#FFF',
     fontSize: 16,
     fontWeight: '800',
