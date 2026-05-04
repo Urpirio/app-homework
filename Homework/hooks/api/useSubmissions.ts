@@ -77,7 +77,7 @@ export function useCreateSubmission() {
       });
       // Invalidate ALL unit task lists so the status badge updates in the list
       queryClient.invalidateQueries({ queryKey: ['tasks', 'unit'] });
-      // Invalidate all projects/units so progress percentages recalculate
+      // Invalidate all projects/units (prefix match — covers useUnitTasksFromProject too)
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });

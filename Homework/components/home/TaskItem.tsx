@@ -20,8 +20,13 @@ export const TaskItem = ({ task, index, onPress, onLongPress }: TaskItemProps) =
   const hasSubmission = !!mySubmission;
   const isGraded = mySubmission?.status === 'GRADED' || mySubmission?.status === 'RETURNED';
 
+  // Overdue: past due date, no submission
+  const isOverdue = !hasSubmission &&
+    !!task.dueDate &&
+    new Date(task.dueDate) < new Date();
+
   const isDone = hasSubmission || task.status?.toLowerCase() === 'done';
-  const isInProgress = !hasSubmission && (
+  const isInProgress = !hasSubmission && !isOverdue && (
     task.status?.toLowerCase() === 'in_progress' ||
     task.status?.toLowerCase() === 'in-progress'
   );
@@ -29,6 +34,7 @@ export const TaskItem = ({ task, index, onPress, onLongPress }: TaskItemProps) =
   const getStatusColor = () => {
     if (isGraded) return '#34C759';
     if (isDone) return theme.colors.primary;
+    if (isOverdue) return '#FF3B30';
     if (isInProgress) return theme.colors.primary;
     return theme.colors.textSecondary;
   };
@@ -47,6 +53,7 @@ export const TaskItem = ({ task, index, onPress, onLongPress }: TaskItemProps) =
   const getStatusLabel = () => {
     if (isGraded) return 'Calificada';
     if (hasSubmission) return 'Entregada';
+    if (isOverdue) return 'Vencida';
     if (isInProgress) return 'En curso';
     return 'Pendiente';
   };
@@ -61,7 +68,7 @@ export const TaskItem = ({ task, index, onPress, onLongPress }: TaskItemProps) =
       >
         <View style={[styles.iconContainer, { backgroundColor: getStatusColor() + '10' }]}>
           <Ionicons 
-            name={isDone ? "document-text" : "document-outline"} 
+            name={isDone ? "document-text" : isOverdue ? "alert-circle" : "document-outline"} 
             size={20} 
             color={getStatusColor()} 
           />

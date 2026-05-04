@@ -8,7 +8,7 @@ import { useUnitTasksFromProject } from '@/hooks/api/useProjects';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -25,6 +25,10 @@ export default function UnitTasksScreen() {
   const projectId = typeof id === 'string' ? id : Array.isArray(id) ? id[0] : '';
   const unitIdStr = typeof unitId === 'string' ? unitId : Array.isArray(unitId) ? unitId[0] : '';
 
+  // Track focus count to force FlatList re-render after refetch
+  const [focusCount, setFocusCount] = useState(0);
+  const isMounted = useRef(false);
+
   const {
     data: tasks,
     isLoading,
@@ -36,7 +40,12 @@ export default function UnitTasksScreen() {
   // Refetch when returning from task detail (e.g. after submitting)
   useFocusEffect(
     useCallback(() => {
-      refetch();
+      if (isMounted.current) {
+        // Only refetch on subsequent focuses (not the initial mount)
+        refetch().then(() => setFocusCount(c => c + 1));
+      } else {
+        isMounted.current = true;
+      }
     }, [refetch])
   );
 
@@ -105,6 +114,7 @@ export default function UnitTasksScreen() {
           </View>
 
           <FlatList
+            key={focusCount}
             data={tasks ?? []}
             keyExtractor={item => item.id}
             showsVerticalScrollIndicator={false}

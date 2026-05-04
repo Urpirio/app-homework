@@ -50,15 +50,24 @@ export class TasksService {
   }
 
   async findOne(id: string, userId: string) {
-    return this.prisma.task.findFirst({
-      where: { 
+    // First try to find the task with direct ownership or membership
+    const task = await this.prisma.task.findFirst({
+      where: {
         id,
         OR: [
           { project: { userId } },
-          { project: { members: { some: { userId } } } }
-        ]
+          { project: { members: { some: { userId } } } },
+          // Also allow access if the project belongs to the student's classroom
+          {
+            project: {
+              classroom: {
+                students: { some: { id: userId } },
+              },
+            },
+          },
+        ],
       },
-      include: { 
+      include: {
         project: {
           include: { user: { select: { fullName: true } } }
         },
@@ -69,6 +78,7 @@ export class TasksService {
         }
       },
     });
+    return task;
   }
 
   async update(id: string, userId: string, data: any) {
@@ -232,14 +242,14 @@ export class TasksService {
 
       switch (role) {
         case 'STUDENT': {
-          // Look up the student's classroomId
-          const student = await this.prisma.user.findUnique({
-            where: { id: userId },
-            select: { classroomId: true },
-          });
-          projectFilter = student?.classroomId
-            ? { classroomId: student.classroomId }
-            : { id: '__none__' }; // No classroom = no tasks
+          // Tasks from projects the student owns or is a member of
+          // (same logic as GET /projects for consistency)
+          projectFilter = {
+            OR: [
+              { userId },
+              { members: { some: { userId } } },
+            ],
+          };
           break;
         }
         case 'TEACHER': {
