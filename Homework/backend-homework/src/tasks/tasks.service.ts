@@ -11,6 +11,30 @@ export class TasksService {
   ) {}
 
   async create(userId: string, data: any) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, institutionId: true },
+    });
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: data.projectId },
+      select: { userId: true, institutionId: true },
+    });
+
+    if (!project) throw new Error('Proyecto no encontrado');
+
+    const isAdmin = user?.role === 'SUPER_ADMIN' || 
+                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === project.institutionId);
+    
+    const isOwner = project.userId === userId;
+
+    if (!isAdmin && !isOwner) {
+      const isTeacher = await this.prisma.projectMember.findFirst({
+        where: { projectId: data.projectId, userId, role: 'teacher' }
+      });
+      if (!isTeacher) throw new Error('No tienes permisos para crear tareas en esta materia');
+    }
+
     let status = data.status;
     if (status) {
       status = status.toUpperCase().replace(/-/g, '_');
@@ -45,30 +69,43 @@ export class TasksService {
     return this.prisma.task.findMany({
       where: { 
         projectId,
-        project: { userId }
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async findOne(id: string, userId: string) {
-    // First try to find the task with direct ownership or membership
-    const task = await this.prisma.task.findFirst({
-      where: {
-        id,
-        OR: [
-          { project: { userId } },
-          { project: { members: { some: { userId } } } },
-          // Also allow access if the project belongs to the student's classroom
-          {
-            project: {
-              classroom: {
-                students: { some: { id: userId } },
-              },
-            },
-          },
-        ],
-      },
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, institutionId: true },
+    });
+
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+      include: { project: true }
+    });
+
+    if (!task) return null;
+
+    const isAdmin = user?.role === 'SUPER_ADMIN' || 
+                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === task.project.institutionId);
+    
+    const isOwner = task.project.userId === userId;
+
+    if (!isAdmin && !isOwner) {
+      const isMember = await this.prisma.projectMember.findFirst({
+        where: { projectId: task.projectId, userId }
+      });
+      
+      const isStudentInClass = await this.prisma.user.findFirst({
+        where: { id: userId, classroomId: task.project.classroomId }
+      });
+
+      if (!isMember && !isStudentInClass) return null;
+    }
+
+    return this.prisma.task.findUnique({
+      where: { id },
       include: {
         project: {
           include: { user: { select: { fullName: true } } }
@@ -80,17 +117,31 @@ export class TasksService {
         }
       },
     });
-    return task;
   }
 
   async update(id: string, userId: string, data: any) {
-    // Verificar que la tarea pertenece al usuario
-    const existingTask = await this.prisma.task.findFirst({
-      where: { id, project: { userId } },
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, institutionId: true },
     });
 
-    if (!existingTask) {
-      throw new Error('Task not found or unauthorized');
+    const existingTask = await this.prisma.task.findUnique({
+      where: { id },
+      include: { project: true }
+    });
+
+    if (!existingTask) throw new Error('Tarea no encontrada');
+
+    const isAdmin = user?.role === 'SUPER_ADMIN' || 
+                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === existingTask.project.institutionId);
+    
+    const isOwner = existingTask.project.userId === userId;
+
+    if (!isAdmin && !isOwner) {
+      const isTeacher = await this.prisma.projectMember.findFirst({
+        where: { projectId: existingTask.projectId, userId, role: 'teacher' }
+      });
+      if (!isTeacher) throw new Error('No tienes permisos para editar esta tarea');
     }
 
     let status = data.status;
@@ -114,26 +165,32 @@ export class TasksService {
       include: { project: true },
     });
 
-    if (status === 'DONE' && existingTask.status !== 'DONE') {
-      await this.notificationsService.create({
-        title: 'Tarea Completada',
-        message: `Has completado la tarea "${task.title}"`,
-        type: NotificationType.TASK,
-        userId,
-      });
-    }
-
     return task;
   }
 
   async remove(id: string, userId: string) {
-    // Verificar propiedad antes de eliminar
-    const task = await this.prisma.task.findFirst({
-      where: { id, project: { userId } },
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, institutionId: true },
     });
 
-    if (!task) {
-      throw new Error('Task not found or unauthorized');
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+      include: { project: true }
+    });
+
+    if (!task) throw new Error('Tarea no encontrada');
+
+    const isAdmin = user?.role === 'SUPER_ADMIN' || 
+                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === task.project.institutionId);
+    
+    const isOwner = task.project.userId === userId;
+
+    if (!isAdmin && !isOwner) {
+      const isTeacher = await this.prisma.projectMember.findFirst({
+        where: { projectId: task.projectId, userId, role: 'teacher' }
+      });
+      if (!isTeacher) throw new Error('No tienes permisos para eliminar esta tarea');
     }
 
     return this.prisma.task.delete({

@@ -52,6 +52,11 @@ export class SubmissionsService {
   }
 
   async grade(teacherId: string, submissionId: string, data: { grade: number; feedback?: string }) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: teacherId },
+      select: { role: true, institutionId: true },
+    });
+
     const submission = await this.prisma.submission.findUnique({
       where: { id: submissionId },
       include: { task: { include: { project: true } } },
@@ -61,13 +66,17 @@ export class SubmissionsService {
       throw new NotFoundException('Entrega no encontrada');
     }
 
-    // Verificar que el usuario es el dueño del aula o un profesor asignado
-    if (submission.task.project.userId !== teacherId) {
+    const isAdmin = user?.role === 'SUPER_ADMIN' || 
+                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === submission.task.project.institutionId);
+    
+    const isOwner = submission.task.project.userId === teacherId;
+
+    if (!isAdmin && !isOwner) {
       const isTeacher = await this.prisma.projectMember.findFirst({
         where: { 
           projectId: submission.task.projectId, 
           userId: teacherId,
-          role: 'teacher' // O cualquier lógica de rol en la membresía
+          role: 'teacher'
         },
       });
       if (!isTeacher) {
@@ -96,6 +105,11 @@ export class SubmissionsService {
   }
 
   async findByTask(taskId: string, userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, institutionId: true },
+    });
+
     const task = await this.prisma.task.findUnique({
       where: { id: taskId },
       include: { project: true },
@@ -105,11 +119,24 @@ export class SubmissionsService {
       throw new NotFoundException('Tarea no encontrada');
     }
 
-    // Solo el profesor o el dueño pueden ver todas las entregas
-    if (task.project.userId === userId) {
+    const isAdmin = user?.role === 'SUPER_ADMIN' || 
+                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === task.project.institutionId);
+    
+    const isOwner = task.project.userId === userId;
+
+    let isTeacher = false;
+    if (!isAdmin && !isOwner) {
+      const teacherMember = await this.prisma.projectMember.findFirst({
+        where: { projectId: task.projectId, userId, role: 'teacher' }
+      });
+      isTeacher = !!teacherMember;
+    }
+
+    // Solo el profesor, el dueño o el admin pueden ver todas las entregas
+    if (isAdmin || isOwner || isTeacher) {
       return this.prisma.submission.findMany({
         where: { taskId },
-        include: { student: { select: { id: true, fullName: true, email: true } } },
+        include: { student: { select: { id: true, fullName: true, email: true, avatarUrl: true } } },
       });
     }
 
