@@ -1,6 +1,7 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ClassroomModal } from '@/components/login/ClassroomModal';
 import { UserRegistrationModal } from '@/components/login/UserRegistrationModal';
+import { InstitutionSelector } from '@/components/shared/InstitutionSelector';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useInstitution } from '@/hooks/useInstitution';
 import { useTheme } from '@/hooks/useTheme';

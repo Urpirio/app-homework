@@ -29,10 +29,9 @@ export const ClassroomModal = ({ visible, onClose, institutionId, onSuccess }: C
 
     setLoading(true);
     try {
-      await api.post('/projects', {
+      await api.post('/classrooms', {
         name,
         description,
-        color: '#007AFF',
         institutionId
       });
 
@@ -72,8 +71,10 @@ export const ClassroomModal = ({ visible, onClose, institutionId, onSuccess }: C
           <AnimatedButton
             title="Crear Aula"
             onPress={handleCreate}
-            loading={loading}
+            isLoading={loading}
             disabled={!name}
+            accessibilityLabel="Botón para crear aula"
+            accessibilityHint="Toca para crear el aula con el nombre proporcionado"
           />
         </View>
       </ScrollView>

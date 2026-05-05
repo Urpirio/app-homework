@@ -44,13 +44,13 @@ export class InstitutionsController {
   }
 
   @Post(':id/admins')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
   async assignAdmin(@Param('id') id: string, @Body() body: AssignAdminDto) {
     return this.institutionsService.assignAdmin(id, body.userId);
   }
 
   @Delete(':id/admins/:adminId')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
   async removeAdmin(@Param('id') id: string, @Param('adminId') adminId: string) {
     return this.institutionsService.removeAdmin(id, adminId);
   }

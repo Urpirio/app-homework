@@ -56,10 +56,19 @@ export default function TeacherListScreen() {
         <BackgroundShapes />
         
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+            </Pressable>
+            <Text style={[styles.title, { color: theme.colors.text }]}>Listado de Maestros</Text>
+          </View>
+          <Pressable 
+            onPress={() => router.push(`/admin/institution/${id}/create-teacher`)}
+            accessibilityRole="button"
+            accessibilityLabel="Añadir nuevo maestro"
+          >
+            <Ionicons name="add-circle" size={32} color={theme.colors.primary} />
           </Pressable>
-          <Text style={[styles.title, { color: theme.colors.text }]}>Listado de Maestros</Text>
         </View>
 
         <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>

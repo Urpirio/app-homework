@@ -112,6 +112,10 @@ export class AuthService {
       role: data.role as Role,
       institution: { connect: { id: institutionId } },
       isVerified: true, // Usuarios creados por admin se marcan como verificados
+      specialty: data.specialty,
+      bio: data.bio,
+      parentName: data.parentName,
+      parentPhone: data.parentPhone,
     });
 
     // Generar código de identidad único

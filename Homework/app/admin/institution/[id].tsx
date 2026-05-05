@@ -195,7 +195,7 @@ export default function InstitutionDetailScreen() {
         </ScrollView>
 
         <EnrollmentOptionsModal visible={optionsVisible} onClose={() => setOptionsVisible(false)} onSelectOption={(o) => { setOptionsVisible(false); if (o === 'SINGLE') router.push(`/admin/institution/${id}/enroll-student`); }} />
-        <ClassroomOptionsModal visible={classOptionsVisible} onClose={() => setClassOptionsVisible(false)} onSelectOption={(o) => { setClassOptionsVisible(false); if (o === 'SINGLE') setClassManualVisible(true); }} />
+        <ClassroomOptionsModal visible={classOptionsVisible} onClose={() => setClassOptionsVisible(false)} onSelectOption={(o) => { setClassOptionsVisible(false); if (o === 'SINGLE') router.push(`/admin/institution/${id}/create-classroom`); }} />
         <ClassroomModal visible={classManualVisible} onClose={() => setClassManualVisible(false)} institutionId={id as string} onSuccess={refresh} />
       </ThemedView>
     </SafeAreaView>

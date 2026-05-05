@@ -12,4 +12,16 @@ export class EnrollStudentDto {
   @IsString()
   @IsOptional()
   classroomId?: string;
+
+  @IsString()
+  @IsOptional()
+  parentName?: string;
+
+  @IsString()
+  @IsOptional()
+  parentPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  bio?: string;
 }

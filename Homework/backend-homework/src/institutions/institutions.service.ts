@@ -371,6 +371,9 @@ export class InstitutionsService {
       role: Role.STUDENT,
       institution: { connect: { id: institutionId } },
       isVerified: true,
+      parentName: data.parentName,
+      parentPhone: data.parentPhone,
+      bio: data.bio,
       ...(data.classroomId ? { classroom: { connect: { id: data.classroomId } } } : {}),
     });
 

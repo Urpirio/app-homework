@@ -48,15 +48,12 @@ export const AdminEnrollmentModal = ({ visible, onClose, institutionId, onSucces
   const searchUsers = async (query: string) => {
     setSearching(true);
     try {
-      const res = await api.get(`/users/search?query=${query}`);
-      setUsers(res.data);
+      const res = await api.get(`/users?search=${query}&institutionId=${institutionId}`);
+      // The backend returns { data: [], total: ... }
+      setUsers(res.data.data || []);
     } catch (error) {
-      // Mock search results
-      setUsers([
-        { id: 'u1', fullName: 'Juan Pérez', email: 'juan@mail.com' },
-        { id: 'u2', fullName: 'María García', email: 'maria@mail.com' },
-        { id: 'u3', fullName: 'Carlos López', email: 'carlos@mail.com' },
-      ]);
+      Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudieron buscar usuarios' });
+      setUsers([]);
     } finally {
       setSearching(false);
     }
@@ -69,11 +66,12 @@ export const AdminEnrollmentModal = ({ visible, onClose, institutionId, onSucces
       Toast.show({ type: 'success', text1: 'Éxito', text2: 'Administrador añadido' });
       onSuccess?.();
       onClose();
-    } catch (error) {
-      // Mock success
-      Toast.show({ type: 'success', text1: 'Éxito (Mock)', text2: 'Administrador añadido' });
-      onSuccess?.();
-      onClose();
+    } catch (error: any) {
+      Toast.show({ 
+        type: 'error', 
+        text1: 'Error', 
+        text2: error.response?.data?.message || 'No se pudo añadir el administrador' 
+      });
     } finally {
       setLoading(false);
     }
@@ -90,17 +88,18 @@ export const AdminEnrollmentModal = ({ visible, onClose, institutionId, onSucces
         fullName,
         email,
         password,
-        role: 'ADMIN',
+        role: 'SCHOOL_ADMIN',
         institutionId
       });
       Toast.show({ type: 'success', text1: 'Éxito', text2: 'Perfil administrativo creado' });
       onSuccess?.();
       onClose();
-    } catch (error) {
-      // Mock success
-      Toast.show({ type: 'success', text1: 'Éxito (Mock)', text2: 'Perfil administrativo creado' });
-      onSuccess?.();
-      onClose();
+    } catch (error: any) {
+      Toast.show({ 
+        type: 'error', 
+        text1: 'Error', 
+        text2: error.response?.data?.message || 'No se pudo crear el administrador' 
+      });
     } finally {
       setLoading(false);
     }
@@ -187,7 +186,13 @@ export const AdminEnrollmentModal = ({ visible, onClose, institutionId, onSucces
                 </Pressable>
               </View>
 
-              <AnimatedButton title="Crear Admin" onPress={handleCreateAdmin} loading={loading} />
+              <AnimatedButton 
+                title="Crear Admin" 
+                onPress={handleCreateAdmin} 
+                isLoading={loading} 
+                accessibilityLabel="Botón para crear administrador"
+                accessibilityHint="Toca para crear un nuevo administrador con los datos proporcionados"
+              />
             </View>
           </ScrollView>
         )}

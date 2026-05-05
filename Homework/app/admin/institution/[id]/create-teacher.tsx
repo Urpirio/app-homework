@@ -11,7 +11,7 @@ import { AnimatedButton } from '@/components/login/AnimatedButton';
 import api from '@/utils/api';
 import Toast from 'react-native-toast-message';
 
-export default function EnrollStudentScreen() {
+export default function CreateTeacherScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { theme } = useTheme();
@@ -19,6 +19,8 @@ export default function EnrollStudentScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [specialty, setSpecialty] = useState('');
+  const [bio, setBio] = useState('');
   const [loading, setLoading] = useState(false);
 
   const generatePassword = () => {
@@ -30,9 +32,9 @@ export default function EnrollStudentScreen() {
     setPassword(pass);
   };
 
-  const handleEnroll = async () => {
+  const handleCreate = async () => {
     if (!fullName || !email || !password) {
-      Toast.show({ type: 'error', text1: 'Error', text2: 'Completa todos los campos' });
+      Toast.show({ type: 'error', text1: 'Error', text2: 'Completa los campos obligatorios' });
       return;
     }
 
@@ -42,16 +44,18 @@ export default function EnrollStudentScreen() {
         fullName,
         email,
         password,
-        parentName,
-        parentPhone,
-        bio,
-        role: 'STUDENT',
+        specialty,
+        role: 'TEACHER',
         institutionId: id
       });
-      Toast.show({ type: 'success', text1: 'Éxito', text2: 'Estudiante matriculado' });
+      Toast.show({ type: 'success', text1: 'Éxito', text2: 'Maestro registrado correctamente' });
       router.back();
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Error', text2: error.response?.data?.message || 'Error al matricular' });
+      Toast.show({ 
+        type: 'error', 
+        text1: 'Error', 
+        text2: error.response?.data?.message || 'Error al registrar maestro' 
+      });
     } finally {
       setLoading(false);
     }
@@ -63,17 +67,17 @@ export default function EnrollStudentScreen() {
         <BackgroundShapes />
         
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Volver">
             <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Matrícula Manual</Text>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Nuevo Maestro</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.formCard}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>Datos del Alumno</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>Perfil del Docente</Text>
             <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-              Ingresa la información básica para crear la cuenta del estudiante.
+              Ingresa la información básica para el acceso del nuevo maestro.
             </Text>
 
             <View style={styles.inputContainer}>
@@ -82,8 +86,8 @@ export default function EnrollStudentScreen() {
                 onChangeText={setFullName}
                 placeholder="Nombre Completo"
                 icon="person-outline"
-                accessibilityLabel="Nombre completo del alumno"
-                accessibilityHint="Ingresa el nombre y apellidos"
+                accessibilityLabel="Nombre completo"
+                accessibilityHint="Ingresa nombre y apellidos"
               />
               <AnimatedInput
                 value={email}
@@ -92,33 +96,24 @@ export default function EnrollStudentScreen() {
                 icon="mail-outline"
                 autoCapitalize="none"
                 accessibilityLabel="Correo electrónico"
-                accessibilityHint="Ingresa un correo válido"
+                accessibilityHint="Ingresa el correo institucional"
               />
               <AnimatedInput
-                value={parentName}
-                onChangeText={setParentName}
-                placeholder="Nombre del Representante"
-                icon="people-outline"
-                accessibilityLabel="Representante"
-                accessibilityHint="Nombre del padre o tutor"
-              />
-              <AnimatedInput
-                value={parentPhone}
-                onChangeText={setParentPhone}
-                placeholder="Teléfono del Representante"
-                icon="call-outline"
-                keyboardType="phone-pad"
-                accessibilityLabel="Teléfono representante"
-                accessibilityHint="Número de contacto para emergencias"
+                value={specialty}
+                onChangeText={setSpecialty}
+                placeholder="Especialidad (ej. Matemáticas)"
+                icon="school-outline"
+                accessibilityLabel="Especialidad"
+                accessibilityHint="Ingresa el área de enseñanza"
               />
               <AnimatedInput
                 value={bio}
                 onChangeText={setBio}
-                placeholder="Notas adicionales / Biografía"
+                placeholder="Biografía / Perfil profesional"
                 icon="document-text-outline"
                 multiline
-                accessibilityLabel="Notas"
-                accessibilityHint="Información adicional relevante"
+                accessibilityLabel="Biografía"
+                accessibilityHint="Ingresa una breve descripción del perfil"
               />
               
               <View style={styles.passwordRow}>
@@ -130,7 +125,7 @@ export default function EnrollStudentScreen() {
                     icon="lock-closed-outline"
                     autoCapitalize="none"
                     accessibilityLabel="Contraseña"
-                    accessibilityHint="Usa una contraseña segura o genera una"
+                    accessibilityHint="Crea una contraseña o genera una"
                   />
                 </View>
                 <Pressable 
@@ -146,11 +141,11 @@ export default function EnrollStudentScreen() {
 
             <View style={styles.buttonContainer}>
               <AnimatedButton
-                title="Finalizar Matrícula"
-                onPress={handleEnroll}
+                title="Registrar Maestro"
+                onPress={handleCreate}
                 isLoading={loading}
-                accessibilityLabel="Botón finalizar matrícula"
-                accessibilityHint="Toca para registrar al alumno"
+                accessibilityLabel="Botón registrar maestro"
+                accessibilityHint="Toca para crear el perfil del maestro"
               />
             </View>
           </View>
@@ -163,15 +158,28 @@ export default function EnrollStudentScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 20, paddingTop: 10 },
   backBtn: { width: 40, height: 40, justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '700', marginLeft: 10 },
+  headerTitle: { fontSize: 20, fontWeight: '800', marginLeft: 10 },
   scrollContent: { padding: 20 },
-  formCard: { padding: 20, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  formCard: { 
+    padding: 24, 
+    borderRadius: 32, 
+    backgroundColor: 'rgba(255,255,255,0.05)', 
+    borderWidth: 1, 
+    borderColor: 'rgba(255,255,255,0.1)' 
+  },
   title: { fontSize: 24, fontWeight: '800', marginBottom: 8 },
   subtitle: { fontSize: 14, marginBottom: 24, lineHeight: 20 },
   inputContainer: { marginBottom: 24 },
   passwordRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  generateBtn: { width: 50, height: 50, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
+  generateBtn: { 
+    width: 50, 
+    height: 50, 
+    borderRadius: 15, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginTop: 10 
+  },
   buttonContainer: { marginTop: 10 },
 });
