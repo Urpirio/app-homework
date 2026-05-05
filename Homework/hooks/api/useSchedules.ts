@@ -24,11 +24,11 @@ interface CreateSchedulePayload {
   institutionId: string;
 }
 
-export function useSchedules() {
+export function useSchedules(filters?: { institutionId?: string; projectId?: string }) {
   return useQuery({
-    queryKey: scheduleKeys.all,
+    queryKey: [scheduleKeys.all[0], filters],
     queryFn: async (): Promise<Schedule[]> => {
-      const { data } = await api.get<Schedule[]>('/schedules');
+      const { data } = await api.get<Schedule[]>('/schedules', { params: filters });
       return data;
     },
   });

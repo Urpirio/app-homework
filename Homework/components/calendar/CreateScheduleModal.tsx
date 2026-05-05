@@ -50,7 +50,7 @@ export function CreateScheduleModal({ visible, onClose, subjects: externalSubjec
   const { theme } = useTheme();
   const { data: profile } = useProfile();
   const { data: projects } = useProjects();
-  const { data: existingSchedules } = useSchedules();
+  const { data: existingSchedules } = useSchedules({ institutionId: externalInstitutionId ?? profile?.institutionId });
   const createSchedule = useCreateSchedule();
 
   const [day, setDay] = useState('Lunes');

@@ -62,7 +62,7 @@ export default function ClassroomDetailScreen() {
   const {
     data: allSchedules,
     isLoading: loadingSchedules,
-  } = useSchedules();
+  } = useSchedules({ institutionId: id });
 
   const deleteSchedule = useDeleteSchedule();
   const removeStudent = useRemoveStudentFromClassroom(classId);

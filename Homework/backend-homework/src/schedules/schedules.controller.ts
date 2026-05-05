@@ -11,11 +11,11 @@ export class SchedulesController {
   constructor(private readonly schedulesService: SchedulesService) {}
 
   @Get()
-  findAll(@Request() req: any, @Query('projectId') projectId?: string) {
+  findAll(@Request() req: any, @Query('institutionId') institutionId?: string, @Query('projectId') projectId?: string) {
     const isAdmin = req.user.role === Role.SUPER_ADMIN || req.user.role === Role.SCHOOL_ADMIN;
     return this.schedulesService.findAll({
       userId: isAdmin ? undefined : req.user.userId,
-      institutionId: req.user.institutionId,
+      institutionId: institutionId || req.user.institutionId,
       projectId
     });
   }
