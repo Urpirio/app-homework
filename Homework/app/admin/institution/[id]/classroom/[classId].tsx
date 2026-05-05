@@ -81,9 +81,12 @@ export default function ClassroomDetailScreen() {
       grouped[day] = [];
     }
     for (const schedule of classroomSchedules) {
-      const dayKey = DAYS_ORDER.find(
-        (d) => d.toLowerCase() === schedule.day.toLowerCase().trim()
-      );
+      const scheduleDay = schedule.day.toLowerCase().trim();
+      const dayKey = DAYS_ORDER.find((d) => {
+        const normalizedDay = d.toLowerCase();
+        return normalizedDay === scheduleDay || normalizedDay.startsWith(scheduleDay);
+      });
+      
       if (dayKey) {
         grouped[dayKey].push(schedule);
       }
