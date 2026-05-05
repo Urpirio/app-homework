@@ -25,6 +25,8 @@ export class TasksService {
         project: { connect: { id: data.projectId } },
         unit: data.unitId ? { connect: { id: data.unitId } } : undefined,
         dueDate: data.dueDate,
+        startDate: data.startDate,
+        resources: data.resources,
       },
       include: { project: true },
     });
@@ -106,6 +108,8 @@ export class TasksService {
         maxGrade: data.maxGrade,
         unit: data.unitId ? { connect: { id: data.unitId } } : (data.unitId === null ? { disconnect: true } : undefined),
         dueDate: data.dueDate,
+        startDate: data.startDate,
+        resources: data.resources,
       },
       include: { project: true },
     });
@@ -307,5 +311,22 @@ export class TasksService {
       };
     }
 
+  async getSubmissions(taskId: string, userId: string) {
+    const task = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      include: { project: true }
+    });
 
+    if (!task) throw new Error('Tarea no encontrada');
+
+    return this.prisma.submission.findMany({
+      where: { taskId },
+      include: { 
+        student: { 
+          select: { id: true, fullName: true, email: true, avatarUrl: true } 
+        } 
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
 }

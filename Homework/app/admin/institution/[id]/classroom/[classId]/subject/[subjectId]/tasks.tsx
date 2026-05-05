@@ -61,7 +61,7 @@ export default function TaskListScreen() {
       <Pressable
         onPress={() =>
           router.push(
-            `/admin/institution/${id}/classroom/${classId}/subject/${subjectId}/task/${item.id}`
+            `/tasks/${item.id}`
           )
         }
         style={({ pressed }) => [

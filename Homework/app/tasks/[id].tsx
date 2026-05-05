@@ -28,6 +28,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TaskForm, TaskFormData } from '@/components/tasks/TaskForm';
 import Toast from 'react-native-toast-message';
 
 export default function TaskDetailScreen() {
@@ -59,12 +60,6 @@ export default function TaskDetailScreen() {
 
   // Edit task state
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editDesc, setEditDesc] = useState('');
-  const [editMaxGrade, setEditMaxGrade] = useState('100');
-  const [editType, setEditType] = useState<'ASSIGNMENT' | 'EXAM' | 'QUIZ' | 'NOTE'>('ASSIGNMENT');
-  const [editDueDate, setEditDueDate] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const isSubmitted = (task as any)?.submissions?.length > 0;
   const submission = isSubmitted ? (task as any).submissions[0] : null;
@@ -171,29 +166,20 @@ export default function TaskDetailScreen() {
   };
 
   const handleEditTask = () => {
-    if (!task) return;
-    setEditTitle(task.title);
-    setEditDesc(task.description || '');
-    setEditMaxGrade(task.maxGrade?.toString() || '100');
-    setEditType((task.type as any) || 'ASSIGNMENT');
-    setEditDueDate(task.dueDate ? new Date(task.dueDate) : null);
     setEditModalVisible(true);
   };
 
-  const handleUpdateTask = async () => {
-    if (!editTitle.trim()) {
-      Alert.alert('Campo requerido', 'El título de la tarea es obligatorio.');
-      return;
-    }
-    const maxGrade = parseInt(editMaxGrade) || 100;
+  const handleUpdateTask = async (formData: TaskFormData) => {
     try {
       await updateTask.mutateAsync({
         id: taskId,
-        title: editTitle.trim(),
-        description: editDesc.trim() || undefined,
-        maxGrade,
-        type: editType,
-        dueDate: editDueDate ? editDueDate.toISOString() : undefined,
+        title: formData.title,
+        description: formData.description,
+        maxGrade: formData.maxGrade,
+        type: formData.type,
+        startDate: formData.startDate?.toISOString(),
+        dueDate: formData.dueDate?.toISOString(),
+        resources: formData.resources,
       });
       setEditModalVisible(false);
       Toast.show({ type: 'success', text1: 'Tarea actualizada' });
@@ -708,104 +694,20 @@ export default function TaskDetailScreen() {
                 </Pressable>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={{ gap: 16 }}>
-                  <View>
-                    <Text style={[styles.fieldLabel, { color: theme.colors.text, marginBottom: 8 }]}>Título *</Text>
-                    <TextInput
-                      style={[styles.modalInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
-                      placeholder="Título de la tarea"
-                      placeholderTextColor={theme.colors.textSecondary}
-                      value={editTitle}
-                      onChangeText={setEditTitle}
-                    />
-                  </View>
-
-                  <View>
-                    <Text style={[styles.fieldLabel, { color: theme.colors.text, marginBottom: 8 }]}>Descripción</Text>
-                    <TextInput
-                      style={[styles.modalInput, styles.modalTextArea, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
-                      placeholder="Descripción o instrucciones"
-                      placeholderTextColor={theme.colors.textSecondary}
-                      value={editDesc}
-                      onChangeText={setEditDesc}
-                      multiline
-                    />
-                  </View>
-
-                  <View style={styles.fieldRow}>
-                    <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>Nota máxima</Text>
-                    <TextInput
-                      style={[styles.smallInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
-                      value={editMaxGrade}
-                      onChangeText={setEditMaxGrade}
-                      keyboardType="numeric"
-                      maxLength={3}
-                    />
-                  </View>
-
-                  <View>
-                    <Text style={[styles.fieldLabel, { color: theme.colors.text, marginBottom: 8 }]}>Fecha Límite</Text>
-                    <Pressable
-                      onPress={() => setShowDatePicker(true)}
-                      style={[styles.modalInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
-                    >
-                      <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
-                      <Text style={{ color: editDueDate ? theme.colors.text : theme.colors.textSecondary, fontSize: 15 }}>
-                        {editDueDate
-                          ? editDueDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
-                          : 'Sin fecha límite'}
-                      </Text>
-                      {editDueDate && (
-                        <Pressable onPress={() => setEditDueDate(null)} style={{ marginLeft: 'auto' }}>
-                          <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
-                        </Pressable>
-                      )}
-                    </Pressable>
-                  </View>
-
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={editDueDate ?? new Date()}
-                      mode="date"
-                      onChange={(event: any, date?: Date) => {
-                        setShowDatePicker(false);
-                        if (date) setEditDueDate(date);
-                      }}
-                    />
-                  )}
-
-                  <View>
-                    <Text style={[styles.fieldLabel, { color: theme.colors.text, marginBottom: 8 }]}>Tipo</Text>
-                    <View style={styles.typeRow}>
-                      {(['ASSIGNMENT', 'EXAM', 'QUIZ', 'NOTE'] as const).map(t => (
-                        <Pressable
-                          key={t}
-                          onPress={() => setEditType(t)}
-                          style={[styles.typeBtn, { backgroundColor: editType === t ? theme.colors.primary : theme.colors.background, borderColor: theme.colors.border }]}
-                        >
-                          <Text style={[styles.typeBtnText, { color: editType === t ? '#FFF' : theme.colors.textSecondary }]}>
-                            {t === 'ASSIGNMENT' ? 'Tarea' : t === 'EXAM' ? 'Examen' : t === 'QUIZ' ? 'Quiz' : 'Nota'}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.modalBtns}>
-                    <Pressable onPress={() => setEditModalVisible(false)} style={[styles.modalCancelBtn, { borderColor: theme.colors.border }]}>
-                      <Text style={[styles.modalCancelText, { color: theme.colors.textSecondary }]}>Cancelar</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={handleUpdateTask}
-                      disabled={updateTask.isPending}
-                      style={[styles.modalConfirmBtn, { backgroundColor: theme.colors.primary }]}
-                    >
-                      <Text style={styles.modalConfirmText}>{updateTask.isPending ? 'Guardando...' : 'Guardar Cambios'}</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </ScrollView>
+              <TaskForm
+                initialData={{
+                  title: task.title,
+                  description: task.description || '',
+                  type: task.type as any,
+                  maxGrade: task.maxGrade,
+                  startDate: task.startDate ? new Date(task.startDate) : null,
+                  dueDate: task.dueDate ? new Date(task.dueDate) : null,
+                  resources: task.resources || [],
+                }}
+                onSubmit={handleUpdateTask}
+                onCancel={() => setEditModalVisible(false)}
+                loading={updateTask.isPending}
+              />
             </Animated.View>
           </View>
         </Modal>

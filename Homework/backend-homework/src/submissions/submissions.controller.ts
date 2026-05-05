@@ -16,6 +16,11 @@ export class SubmissionsController {
     return this.submissionsService.submit(req.user.userId, body);
   }
 
+  @Get(':id')
+  async findOne(@Request() req: any, @Param('id') id: string) {
+    return this.submissionsService.findOne(id, req.user.userId);
+  }
+
   @Patch(':id/grade')
   @Roles(Role.TEACHER, Role.SCHOOL_ADMIN)
   async grade(

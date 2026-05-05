@@ -550,7 +550,7 @@ export default function SubjectDetailScreen() {
                   key={task.id}
                   onPress={() =>
                     router.push(
-                      `/admin/institution/${id}/classroom/${classId}/subject/${subjectId}/task/${task.id}`
+                      `/tasks/${task.id}`
                     )
                   }
                   style={({ pressed }) => [

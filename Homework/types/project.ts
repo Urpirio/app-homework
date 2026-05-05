@@ -6,6 +6,10 @@ export interface Task {
   type?: 'ASSIGNMENT' | 'EXAM' | 'NOTE' | 'QUIZ';
   maxGrade?: number;
   dueDate?: string;
+  startDate?: string;
+  resources?: any;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Project {

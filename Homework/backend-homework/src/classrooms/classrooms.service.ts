@@ -108,6 +108,17 @@ export class ClassroomsService {
     });
   }
 
+  async removeStudent(id: string, studentId: string) {
+    return this.prisma.classroom.update({
+      where: { id },
+      data: {
+        students: {
+          disconnect: { id: studentId },
+        },
+      },
+    });
+  }
+
   async getSubjects(id: string) {
     const classroom = await this.prisma.classroom.findUnique({
       where: { id },

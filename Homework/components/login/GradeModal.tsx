@@ -23,10 +23,11 @@ interface GradeModalProps {
   submissionId: string;
   currentGrade: number | null;
   currentFeedback: string | null;
+  maxGrade?: number;
   onSuccess: () => void;
 }
 
-export const GradeModal = ({ visible, onClose, submissionId, currentGrade, currentFeedback, onSuccess }: GradeModalProps) => {
+export const GradeModal = ({ visible, onClose, submissionId, currentGrade, currentFeedback, maxGrade = 10, onSuccess }: GradeModalProps) => {
   const { theme } = useTheme();
   const [grade, setGrade] = useState(currentGrade?.toString() || '');
   const [feedback, setFeedback] = useState(currentFeedback || '');
@@ -34,18 +35,18 @@ export const GradeModal = ({ visible, onClose, submissionId, currentGrade, curre
 
   const handleSubmit = async () => {
     const numGrade = parseFloat(grade);
-    if (isNaN(numGrade) || numGrade < 0 || numGrade > 10) {
+    if (isNaN(numGrade) || numGrade < 0 || numGrade > maxGrade) {
       Toast.show({
         type: 'error',
         text1: 'Calificación inválida',
-        text2: 'Por favor ingresa una nota entre 0 y 10',
+        text2: `Por favor ingresa una nota entre 0 y ${maxGrade}`,
       });
       return;
     }
 
     try {
       setLoading(true);
-      await api.put(`/submissions/${submissionId}/grade`, { 
+      await api.patch(`/submissions/${submissionId}/grade`, { 
         grade: numGrade,
         feedback 
       });
@@ -94,7 +95,7 @@ export const GradeModal = ({ visible, onClose, submissionId, currentGrade, curre
               </View>
 
               <View style={styles.content}>
-                <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Calificación (0-10)</Text>
+                <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Calificación (0-{maxGrade})</Text>
                 <View style={[styles.inputContainer, { backgroundColor: theme.colors.background }]}>
                   <Ionicons name="star" size={20} color="#FFD700" style={styles.inputIcon} />
                   <TextInput

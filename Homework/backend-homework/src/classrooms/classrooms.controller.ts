@@ -48,4 +48,10 @@ export class ClassroomsController {
   addStudent(@Param('id') id: string, @Body() body: { studentId: string }) {
     return this.classroomsService.addStudent(id, body.studentId);
   }
+
+  @Delete(':id/students/:studentId')
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
+  removeStudent(@Param('id') id: string, @Param('studentId') studentId: string) {
+    return this.classroomsService.removeStudent(id, studentId);
+  }
 }

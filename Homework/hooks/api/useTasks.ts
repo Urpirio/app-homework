@@ -54,6 +54,8 @@ interface CreateTaskPayload {
   type?: 'ASSIGNMENT' | 'EXAM' | 'NOTE' | 'QUIZ';
   projectId: string;
   unitId?: string;
+  startDate?: string;
+  resources?: any;
 }
 
 interface UpdateTaskPayload {
@@ -64,6 +66,8 @@ interface UpdateTaskPayload {
   maxGrade?: number;
   status?: 'TODO' | 'IN_PROGRESS' | 'DONE';
   type?: 'ASSIGNMENT' | 'EXAM' | 'NOTE' | 'QUIZ';
+  startDate?: string;
+  resources?: any;
 }
 
 export function useTask(taskId: string) {

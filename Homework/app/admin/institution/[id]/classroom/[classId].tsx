@@ -1,10 +1,11 @@
+import { EnrollStudentModal } from '@/components/admin/EnrollStudentModal';
 import { CreateScheduleModal } from '@/components/calendar/CreateScheduleModal';
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
-import { useClassroom, useClassroomSubjects } from '@/hooks/api/useClassrooms';
+import { useClassroom, useClassroomSubjects, useRemoveStudentFromClassroom } from '@/hooks/api/useClassrooms';
 import { useDeleteSchedule, useSchedules } from '@/hooks/api/useSchedules';
 import { useTheme } from '@/hooks/useTheme';
 import type { Schedule } from '@/types/schedule';
@@ -12,7 +13,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
+    Alert,
     FlatList,
+    Image,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -38,6 +41,7 @@ export default function ClassroomDetailScreen() {
   const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabKey>('subjects');
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
+  const [enrollModalVisible, setEnrollModalVisible] = useState(false);
 
   const {
     data: classroom,
@@ -61,6 +65,7 @@ export default function ClassroomDetailScreen() {
   } = useSchedules();
 
   const deleteSchedule = useDeleteSchedule();
+  const removeStudent = useRemoveStudentFromClassroom(classId);
 
   // Filter schedules for subjects in this classroom
   const classroomSchedules = useMemo(() => {
@@ -97,6 +102,28 @@ export default function ClassroomDetailScreen() {
     } catch {
       Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo eliminar el horario' });
     }
+  };
+
+  const handleRemoveStudent = async (studentId: string, studentName: string) => {
+    Alert.alert(
+      'Eliminar Estudiante',
+      `¿Estás seguro de que deseas eliminar a ${studentName} de esta aula?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Eliminar', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeStudent.mutateAsync(studentId);
+              Toast.show({ type: 'success', text1: 'Estudiante eliminado' });
+            } catch {
+              Toast.show({ type: 'error', text1: 'Error al eliminar estudiante' });
+            }
+          }
+        }
+      ]
+    );
   };
 
   if (loadingClassroom) {
@@ -213,7 +240,12 @@ export default function ClassroomDetailScreen() {
             />
           )}
           {activeTab === 'students' && (
-            <StudentsTab studentCount={classroom?._count?.students ?? 0} />
+            <StudentsTab 
+              students={(classroom as any)?.students ?? []} 
+              onAddStudent={() => setEnrollModalVisible(true)}
+              onRemoveStudent={handleRemoveStudent}
+              onStudentPress={(studentId: string) => router.push(`/admin/institution/${id}/student/${studentId}`)}
+            />
           )}
           {activeTab === 'schedule' && (
             <ScheduleTab
@@ -230,6 +262,13 @@ export default function ClassroomDetailScreen() {
           onClose={() => setScheduleModalVisible(false)}
           subjects={subjects?.map((s) => ({ id: s.id, name: s.name })) ?? []}
           institutionId={id}
+        />
+
+        <EnrollStudentModal
+          visible={enrollModalVisible}
+          onClose={() => setEnrollModalVisible(false)}
+          institutionId={id}
+          classroomId={classId}
         />
       </ThemedView>
     </SafeAreaView>
@@ -341,19 +380,71 @@ function SubjectItem({ subject, onPress }: { subject: any; onPress: () => void }
 
 /* ─── Students Tab ─── */
 
-function StudentsTab({ studentCount }: { studentCount: number }) {
+interface StudentsTabProps {
+  students: any[];
+  onAddStudent: () => void;
+  onRemoveStudent: (id: string, name: string) => void;
+  onStudentPress: (id: string) => void;
+}
+
+function StudentsTab({ students, onAddStudent, onRemoveStudent, onStudentPress }: StudentsTabProps) {
   const { theme } = useTheme();
 
   return (
-    <View style={styles.studentsPlaceholder}>
-      <Ionicons name="people" size={48} color={theme.colors.textSecondary} />
-      <Text style={[styles.studentsCount, { color: theme.colors.text }]}>
-        {studentCount} {studentCount === 1 ? 'Estudiante' : 'Estudiantes'}
-      </Text>
-      <Text style={[styles.studentsHint, { color: theme.colors.textSecondary }]}>
-        Gestiona estudiantes desde la pantalla de inscripción
-      </Text>
-    </View>
+    <>
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Alumnos Inscritos</Text>
+        <Pressable
+          onPress={onAddStudent}
+          style={[styles.addBtn, { backgroundColor: theme.colors.primary }]}
+          accessibilityRole="button"
+          accessibilityLabel="Añadir alumno"
+        >
+          <Ionicons name="person-add" size={18} color="#FFF" />
+          <Text style={styles.addBtnText}>Inscribir</Text>
+        </Pressable>
+      </View>
+
+      {students.length === 0 ? (
+        <EmptyState
+          icon="people-outline"
+          title="No hay estudiantes"
+          message="Inscribe al primer estudiante en esta aula"
+          actionLabel="Inscribir Alumno"
+          onAction={onAddStudent}
+        />
+      ) : (
+        <FlatList
+          data={students}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() => onStudentPress(item.id)}
+              style={[styles.studentCard, { backgroundColor: theme.colors.card }]}
+            >
+              <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.primary + '20' }]}>
+                {item.avatarUrl ? (
+                  <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
+                ) : (
+                  <Ionicons name="person" size={24} color={theme.colors.primary} />
+                )}
+              </View>
+              <View style={styles.studentInfo}>
+                <Text style={[styles.studentName, { color: theme.colors.text }]}>{item.fullName}</Text>
+                <Text style={[styles.studentEmail, { color: theme.colors.textSecondary }]}>{item.email}</Text>
+              </View>
+              <Pressable 
+                onPress={() => onRemoveStudent(item.id, item.fullName)}
+                style={styles.removeBtn}
+              >
+                <Ionicons name="close-circle-outline" size={24} color="#FF3B30" />
+              </Pressable>
+            </Pressable>
+          )}
+        />
+      )}
+    </>
   );
 }
 
@@ -523,15 +614,30 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   gradeText: { fontSize: 15, fontWeight: '800' },
-  studentsPlaceholder: {
-    flex: 1,
+  studentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 18,
+    marginBottom: 10,
+    gap: 12,
+  },
+  avatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    paddingTop: 40,
+    overflow: 'hidden',
   },
-  studentsCount: { fontSize: 22, fontWeight: '800' },
-  studentsHint: { fontSize: 14, textAlign: 'center' },
+  avatar: {
+    width: 48,
+    height: 48,
+  },
+  studentInfo: { flex: 1 },
+  studentName: { fontSize: 16, fontWeight: '700' },
+  studentEmail: { fontSize: 13, marginTop: 2 },
+  removeBtn: { padding: 4 },
   daySection: { marginBottom: 20 },
   dayLabel: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
   scheduleEntry: {

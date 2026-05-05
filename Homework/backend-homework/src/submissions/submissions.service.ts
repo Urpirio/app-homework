@@ -118,4 +118,20 @@ export class SubmissionsService {
       where: { taskId, studentId: userId },
     });
   }
+
+  async findOne(id: string, userId: string) {
+    const submission = await this.prisma.submission.findUnique({
+      where: { id },
+      include: {
+        student: { select: { id: true, fullName: true, avatarUrl: true } },
+        task: { select: { id: true, title: true, maxGrade: true } },
+      },
+    });
+
+    if (!submission) {
+      throw new NotFoundException('Entrega no encontrada');
+    }
+
+    return submission;
+  }
 }

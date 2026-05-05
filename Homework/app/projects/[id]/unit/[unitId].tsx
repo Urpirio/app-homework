@@ -23,6 +23,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TaskForm, TaskFormData } from '@/components/tasks/TaskForm';
 import Toast from 'react-native-toast-message';
 
 export default function UnitTasksScreen() {
@@ -36,12 +37,6 @@ export default function UnitTasksScreen() {
   const isTeacher = profile?.role === 'TEACHER' || profile?.role === 'SUPER_ADMIN' || profile?.role === 'SCHOOL_ADMIN';
 
   const [showCreateTask, setShowCreateTask] = useState(false);
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskDesc, setTaskDesc] = useState('');
-  const [taskMaxGrade, setTaskMaxGrade] = useState('100');
-  const [taskType, setTaskType] = useState<'ASSIGNMENT' | 'EXAM' | 'QUIZ' | 'NOTE'>('ASSIGNMENT');
-  const [taskDueDate, setTaskDueDate] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [showEditUnit, setShowEditUnit] = useState(false);
   const [editUnitName, setEditUnitName] = useState('');
@@ -78,32 +73,20 @@ export default function UnitTasksScreen() {
     }, [refetch])
   );
 
-  const handleCreateTask = async () => {
-    if (!taskTitle.trim()) {
-      Alert.alert('Campo requerido', 'El título de la tarea es obligatorio.');
-      return;
-    }
-    const maxGrade = parseInt(taskMaxGrade) || 100;
-    if (maxGrade < 0 || maxGrade > 100) {
-      Alert.alert('Nota inválida', 'La nota máxima debe estar entre 0 y 100.');
-      return;
-    }
+  const handleCreateTask = async (formData: TaskFormData) => {
     try {
       await createTask.mutateAsync({
-        title: taskTitle.trim(),
-        description: taskDesc.trim() || undefined,
-        type: taskType,
-        maxGrade,
+        title: formData.title,
+        description: formData.description,
+        type: formData.type,
+        maxGrade: formData.maxGrade,
         projectId,
         unitId: unitIdStr,
-        dueDate: taskDueDate ? taskDueDate.toISOString() : undefined,
+        startDate: formData.startDate?.toISOString(),
+        dueDate: formData.dueDate?.toISOString(),
+        resources: formData.resources,
       });
       setShowCreateTask(false);
-      setTaskTitle('');
-      setTaskDesc('');
-      setTaskMaxGrade('100');
-      setTaskDueDate(null);
-      setTaskType('ASSIGNMENT');
       refetch().then(() => setFocusCount(c => c + 1));
       Toast.show({ type: 'success', text1: 'Tarea creada' });
     } catch {
@@ -283,93 +266,12 @@ export default function UnitTasksScreen() {
           <Modal visible={showCreateTask} transparent animationType="slide" onRequestClose={() => setShowCreateTask(false)}>
             <Pressable style={styles.modalOverlay} onPress={() => setShowCreateTask(false)}>
               <Pressable style={[styles.modalCard, { backgroundColor: theme.colors.card }]} onPress={() => {}}>
-                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Nueva Tarea</Text>
-
-                <TextInput
-                  style={[styles.modalInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
-                  placeholder="Título de la tarea *"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={taskTitle}
-                  onChangeText={setTaskTitle}
+                <TaskForm
+                  onSubmit={handleCreateTask}
+                  onCancel={() => setShowCreateTask(false)}
+                  loading={createTask.isPending}
+                  submitLabel="Crear Tarea"
                 />
-                <TextInput
-                  style={[styles.modalInput, styles.modalTextArea, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
-                  placeholder="Descripción o instrucciones (opcional)"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={taskDesc}
-                  onChangeText={setTaskDesc}
-                  multiline
-                />
-
-                {/* Max Grade */}
-                <View style={styles.fieldRow}>
-                  <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>Nota máxima</Text>
-                  <TextInput
-                    style={[styles.smallInput, { backgroundColor: theme.colors.background, color: theme.colors.text, borderColor: theme.colors.border }]}
-                    value={taskMaxGrade}
-                    onChangeText={setTaskMaxGrade}
-                    keyboardType="numeric"
-                    maxLength={3}
-                  />
-                </View>
-
-                {/* Due Date */}
-                <Pressable
-                  onPress={() => setShowDatePicker(true)}
-                  style={[styles.modalInput, { backgroundColor: theme.colors.background, borderColor: theme.colors.border, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
-                >
-                  <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
-                  <Text style={{ color: taskDueDate ? theme.colors.text : theme.colors.textSecondary, fontSize: 15 }}>
-                    {taskDueDate
-                      ? taskDueDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
-                      : 'Fecha límite (opcional)'}
-                  </Text>
-                  {taskDueDate && (
-                    <Pressable onPress={() => setTaskDueDate(null)} style={{ marginLeft: 'auto' }}>
-                      <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
-                    </Pressable>
-                  )}
-                </Pressable>
-
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={taskDueDate ?? new Date()}
-                    mode="date"
-                    minimumDate={new Date()}
-                    onChange={(event: any, date?: Date) => {
-                      setShowDatePicker(false);
-                      if (date) setTaskDueDate(date);
-                    }}
-                  />
-                )}
-
-                {/* Type selector */}
-                <View style={styles.typeRow}>
-                  {(['ASSIGNMENT', 'EXAM', 'QUIZ', 'NOTE'] as const).map(t => (
-                    <Pressable
-                      key={t}
-                      onPress={() => setTaskType(t)}
-                      style={[styles.typeBtn, { backgroundColor: taskType === t ? theme.colors.primary : theme.colors.background, borderColor: theme.colors.border }]}
-                    >
-                      <Text style={[styles.typeBtnText, { color: taskType === t ? '#FFF' : theme.colors.textSecondary }]}>
-                        {t === 'ASSIGNMENT' ? 'Tarea' : t === 'EXAM' ? 'Examen' : t === 'QUIZ' ? 'Quiz' : 'Nota'}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <View style={styles.modalBtns}>
-                  <Pressable onPress={() => setShowCreateTask(false)} style={[styles.modalCancelBtn, { borderColor: theme.colors.border }]}>
-                    <Text style={[styles.modalCancelText, { color: theme.colors.textSecondary }]}>Cancelar</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleCreateTask}
-                    disabled={createTask.isPending}
-                    style={[styles.modalConfirmBtn, { backgroundColor: theme.colors.primary }]}
-                  >
-                    <Text style={styles.modalConfirmText}>{createTask.isPending ? 'Creando...' : 'Crear Tarea'}</Text>
-                  </Pressable>
-                </View>
               </Pressable>
             </Pressable>
           </Modal>

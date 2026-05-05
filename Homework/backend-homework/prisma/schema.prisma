@@ -133,6 +133,8 @@ model Task {
 
   submissions Submission[]
   dueDate     DateTime?
+  startDate   DateTime?
+  resources   Json?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }

@@ -111,3 +111,32 @@ export function useCreateSubjectInClassroom(classroomId: string) {
     },
   });
 }
+export function useAddStudentToClassroom(classroomId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (studentId: string): Promise<void> => {
+      await api.post(`/classrooms/${classroomId}/students`, { studentId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: classroomKeys.detail(classroomId),
+      });
+    },
+  });
+}
+
+export function useRemoveStudentFromClassroom(classroomId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (studentId: string): Promise<void> => {
+      await api.delete(`/classrooms/${classroomId}/students/${studentId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: classroomKeys.detail(classroomId),
+      });
+    },
+  });
+}

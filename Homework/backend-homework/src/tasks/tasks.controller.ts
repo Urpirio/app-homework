@@ -35,6 +35,11 @@ export class TasksController {
     return this.tasksService.findOne(id, req.user.userId);
   }
 
+  @Get(':id/submissions')
+  getSubmissions(@Request() req: any, @Param('id') id: string) {
+    return this.tasksService.getSubmissions(id, req.user.userId);
+  }
+
   @Patch(':id')
   update(@Request() req: any, @Param('id') id: string, @Body() updateTaskDto: Prisma.TaskUpdateInput) {
     return this.tasksService.update(id, req.user.userId, updateTaskDto);
