@@ -179,6 +179,9 @@ export class ClassroomsService {
             },
           },
         },
+        _count: {
+          select: { students: true },
+        },
       },
     });
 
@@ -191,7 +194,7 @@ export class ClassroomsService {
       name: p.name,
       teacher: p.user?.fullName || 'Sin profesor',
       taskCount: p._count?.tasks ?? 0,
-      studentCount: classroom.students.length, // Consistency: Use the classroom's student count
+      studentCount: classroom._count?.students ?? 0, // Consistency: Use the classroom's student count
       avgGrade: 0, 
     }));
   }
