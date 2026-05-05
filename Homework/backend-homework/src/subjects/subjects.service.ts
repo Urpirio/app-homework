@@ -176,8 +176,8 @@ export class SubjectsService {
           ),
         );
       }
+    }
 
-      // Re-fetch to include updated members
     return this.findOne(id);
   }
 

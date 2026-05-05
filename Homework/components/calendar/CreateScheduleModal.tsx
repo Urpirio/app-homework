@@ -25,7 +25,9 @@ import {
     Text,
     TextInput,
     View,
+    Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import Toast from 'react-native-toast-message';
 
 interface SubjectOption {
@@ -52,11 +54,13 @@ export function CreateScheduleModal({ visible, onClose, subjects: externalSubjec
   const createSchedule = useCreateSchedule();
 
   const [day, setDay] = useState('Lunes');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
+  const [startTime, setStartTime] = useState<Date>(new Date(new Date().setHours(8, 0, 0, 0)));
+  const [endTime, setEndTime] = useState<Date>(new Date(new Date().setHours(9, 30, 0, 0)));
   const [room, setRoom] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<'start' | 'end'>('start');
 
   // Use classroom-specific subjects when provided, otherwise fall back to all projects
   const availableProjects = useMemo(() => {
@@ -67,8 +71,8 @@ export function CreateScheduleModal({ visible, onClose, subjects: externalSubjec
 
   const resetForm = useCallback(() => {
     setDay('Lunes');
-    setStartTime('');
-    setEndTime('');
+    setStartTime(new Date(new Date().setHours(8, 0, 0, 0)));
+    setEndTime(new Date(new Date().setHours(9, 30, 0, 0)));
     setRoom('');
     setSelectedProjectId('');
     setConflictWarning(null);
@@ -80,36 +84,25 @@ export function CreateScheduleModal({ visible, onClose, subjects: externalSubjec
   }, [onClose, resetForm]);
 
   const validateAndCheckConflicts = useCallback((): boolean => {
-    // Basic validation
-    if (!startTime.trim() || !endTime.trim()) {
-      setConflictWarning('Ingresa hora de inicio y fin');
-      return false;
-    }
-
     if (!selectedProjectId) {
       setConflictWarning('Selecciona una materia');
       return false;
     }
 
-    // Time format validation (HH:MM)
-    const timeRegex = /^\d{1,2}:\d{2}$/;
-    if (!timeRegex.test(startTime.trim()) || !timeRegex.test(endTime.trim())) {
-      setConflictWarning('Formato de hora inválido. Usa HH:MM');
-      return false;
-    }
+    // Format times for conflict detection
+    const startStr = startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const endStr = endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
 
     // Check start < end
-    const [sh, sm] = startTime.split(':').map(Number);
-    const [eh, em] = endTime.split(':').map(Number);
-    if (sh * 60 + sm >= eh * 60 + em) {
-      setConflictWarning('La hora de inicio debe ser anterior a la hora de fin');
+    if (startTime.getTime() >= endTime.getTime()) {
+      setConflictWarning('La hora de inicio debe ser anterior a la de fin');
       return false;
     }
 
     // Conflict detection (Property 32)
     const schedules: Schedule[] = existingSchedules ?? [];
     const conflict = detectScheduleConflict(
-      { day, startTime: startTime.trim(), endTime: endTime.trim(), room: room.trim() || undefined },
+      { day, startTime: startStr, endTime: endStr, room: room.trim() || undefined },
       schedules,
     );
 
@@ -129,11 +122,14 @@ export function CreateScheduleModal({ visible, onClose, subjects: externalSubjec
   const handleSubmit = useCallback(async () => {
     if (!validateAndCheckConflicts()) return;
 
+    const startStr = startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const endStr = endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+
     try {
       await createSchedule.mutateAsync({
         day,
-        startTime: startTime.trim(),
-        endTime: endTime.trim(),
+        startTime: startStr,
+        endTime: endStr,
         room: room.trim() || undefined,
         projectId: selectedProjectId,
         institutionId: externalInstitutionId ?? profile?.institutionId ?? '',
@@ -155,7 +151,18 @@ export function CreateScheduleModal({ visible, onClose, subjects: externalSubjec
         visibilityTime: 3000,
       });
     }
-  }, [validateAndCheckConflicts, createSchedule, day, startTime, endTime, room, selectedProjectId, profile, handleClose]);
+  }, [validateAndCheckConflicts, createSchedule, day, startTime, endTime, room, selectedProjectId, profile, externalInstitutionId, handleClose]);
+
+  const onTimeChange = (event: any, selectedDate?: Date) => {
+    setShowPicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      if (pickerTarget === 'start') {
+        setStartTime(selectedDate);
+      } else {
+        setEndTime(selectedDate);
+      }
+    }
+  };
 
   return (
     <BaseModal visible={visible} onClose={handleClose}>
@@ -189,58 +196,58 @@ export function CreateScheduleModal({ visible, onClose, subjects: externalSubjec
           ))}
         </View>
 
-        {/* Time inputs */}
+        {/* Time selection */}
         <View style={styles.timeRow}>
           <View style={styles.timeField}>
             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Inicio</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: theme.colors.inputBackground, color: theme.colors.text },
-              ]}
-              placeholder="08:00"
-              placeholderTextColor={theme.colors.border}
-              value={startTime}
-              onChangeText={setStartTime}
-              keyboardType="numbers-and-punctuation"
-              maxLength={5}
-              accessibilityLabel="Hora de inicio"
-            />
+            <Pressable
+              onPress={() => { setPickerTarget('start'); setShowPicker(true); }}
+              style={[styles.timePickerBtn, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}
+            >
+              <Ionicons name="time-outline" size={18} color={theme.colors.primary} />
+              <Text style={[styles.timeText, { color: theme.colors.text }]}>
+                {startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </Pressable>
           </View>
           <View style={styles.timeSeparator}>
             <Ionicons name="arrow-forward" size={18} color={theme.colors.textSecondary} />
           </View>
           <View style={styles.timeField}>
             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Fin</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: theme.colors.inputBackground, color: theme.colors.text },
-              ]}
-              placeholder="09:30"
-              placeholderTextColor={theme.colors.border}
-              value={endTime}
-              onChangeText={setEndTime}
-              keyboardType="numbers-and-punctuation"
-              maxLength={5}
-              accessibilityLabel="Hora de fin"
-            />
+            <Pressable
+              onPress={() => { setPickerTarget('end'); setShowPicker(true); }}
+              style={[styles.timePickerBtn, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}
+            >
+              <Ionicons name="time-outline" size={18} color="#FF9500" />
+              <Text style={[styles.timeText, { color: theme.colors.text }]}>
+                {endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </Pressable>
           </View>
         </View>
 
-        {/* Room */}
-        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Aula (opcional)</Text>
-        <TextInput
-          style={[
-            styles.input,
-            { backgroundColor: theme.colors.inputBackground, color: theme.colors.text },
-          ]}
-          placeholder="Ej: Aula 101"
-          placeholderTextColor={theme.colors.border}
-          value={room}
-          onChangeText={setRoom}
-          accessibilityLabel="Aula"
-        />
+        {showPicker && (
+          <DateTimePicker
+            value={pickerTarget === 'start' ? startTime : endTime}
+            mode="time"
+            is24Hour={true}
+            display="default"
+            onChange={onTimeChange}
+          />
+        )}
+
+        {/* Room - Made less prominent */}
+        <View style={styles.roomContainer}>
+          <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} />
+          <TextInput
+            style={[styles.smallRoomInput, { color: theme.colors.text }]}
+            placeholder="Lugar/Aula física (opcional)"
+            placeholderTextColor={theme.colors.textSecondary}
+            value={room}
+            onChangeText={setRoom}
+          />
+        </View>
 
         {/* Subject selector */}
         <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Materia</Text>
@@ -356,6 +363,29 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     fontWeight: '600',
+  },
+  timePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  timeText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  roomContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    opacity: 0.8,
+  },
+  smallRoomInput: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
   },
   subjectScroll: {
     maxHeight: 50,
