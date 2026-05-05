@@ -1,10 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
+import { EnrollStudentDto } from './dto/enroll-student.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class InstitutionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private usersService: UsersService,
+  ) {}
 
   async create(data: { name: string; logoUrl?: string; address?: string }) {
     return this.prisma.institution.create({
@@ -339,5 +345,37 @@ export class InstitutionsService {
         engagementScore,
       },
     };
+  }
+
+  async enrollStudent(institutionId: string, data: EnrollStudentDto) {
+    const institution = await this.prisma.institution.findUnique({
+      where: { id: institutionId },
+    });
+
+    if (!institution) {
+      throw new NotFoundException('Institución no encontrada');
+    }
+
+    const existingUser = await this.usersService.findOne(data.email);
+    if (existingUser) {
+      throw new BadRequestException('El estudiante ya está registrado');
+    }
+
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash('temp1234', salt);
+
+    const newUser = await this.usersService.create({
+      email: data.email,
+      fullName: data.fullName,
+      password: hashedPassword,
+      role: Role.STUDENT,
+      institution: { connect: { id: institutionId } },
+      isVerified: true,
+      ...(data.classroomId ? { classroom: { connect: { id: data.classroomId } } } : {}),
+    });
+
+    await this.usersService.generateIdentityCode(newUser.id);
+
+    return this.usersService.findById(newUser.id);
   }
 }

@@ -190,7 +190,7 @@ export function useEnrollStudent() {
   return useMutation({
     mutationFn: async ({ institutionId, ...payload }: EnrollStudentPayload): Promise<User> => {
       const { data } = await api.post<User>(
-        `/admin/institution/${institutionId}/enroll-student`,
+        `/institutions/${institutionId}/enroll-student`,
         payload
       );
       return data;

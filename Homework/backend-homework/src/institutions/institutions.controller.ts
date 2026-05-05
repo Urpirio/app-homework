@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { AssignAdminDto } from './dto/assign-admin.dto';
+import { EnrollStudentDto } from './dto/enroll-student.dto';
 import { UpdateInstitutionDto } from './dto/update-institution.dto';
 import { InstitutionsService } from './institutions.service';
 
@@ -82,5 +83,14 @@ export class InstitutionsController {
   @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
   async getAnalytics(@Param('id') id: string) {
     return this.institutionsService.getAnalytics(id);
+  }
+
+  @Post(':id/enroll-student')
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
+  async enrollStudent(
+    @Param('id') id: string,
+    @Body() body: EnrollStudentDto,
+  ) {
+    return this.institutionsService.enrollStudent(id, body);
   }
 }
