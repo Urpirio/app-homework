@@ -12,36 +12,19 @@ export class ClassroomsService {
       throw new ForbiddenException('No tienes permiso para crear aulas');
     }
 
-    const { institutionId: bodyInstitutionId, teacherId, ...rest } = data;
+    const { institutionId: bodyInstitutionId, ...rest } = data;
     const institutionId = user.role === Role.SUPER_ADMIN ? bodyInstitutionId : user.institutionId;
 
     if (!institutionId) {
       throw new NotFoundException('Se requiere el ID de la institución');
     }
 
-    const classroom = await this.prisma.classroom.create({
+    return this.prisma.classroom.create({
       data: {
         ...rest,
         institution: { connect: { id: institutionId } },
       },
     });
-
-    // If a teacher was selected, create a default "General" subject for that teacher in this classroom
-    if (teacherId) {
-      await this.prisma.project.create({
-        data: {
-          name: 'Materia General',
-          description: `Materia principal para el aula ${classroom.name}`,
-          color: '#4F46E5', // Default Indigo color
-          icon: 'journal-outline',
-          institution: { connect: { id: institutionId } },
-          classroom: { connect: { id: classroom.id } },
-          user: { connect: { id: teacherId } },
-        },
-      });
-    }
-
-    return classroom;
   }
 
   async findAllForInstitution(institutionId: string) {

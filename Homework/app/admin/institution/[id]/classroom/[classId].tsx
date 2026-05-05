@@ -5,7 +5,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
-import { useClassroom, useClassroomSubjects, useRemoveStudentFromClassroom } from '@/hooks/api/useClassrooms';
+import { useClassroom, useClassroomSubjects, useRemoveStudentFromClassroom, useDeleteClassroom } from '@/hooks/api/useClassrooms';
 import { useDeleteSchedule, useSchedules } from '@/hooks/api/useSchedules';
 import { useTheme } from '@/hooks/useTheme';
 import type { Schedule } from '@/types/schedule';
@@ -66,6 +66,7 @@ export default function ClassroomDetailScreen() {
 
   const deleteSchedule = useDeleteSchedule();
   const removeStudent = useRemoveStudentFromClassroom(classId);
+  const deleteClassroom = useDeleteClassroom();
 
   // Filter schedules for subjects in this classroom
   const classroomSchedules = useMemo(() => {
@@ -129,6 +130,33 @@ export default function ClassroomDetailScreen() {
     );
   };
 
+  const handleDeleteClassroom = async () => {
+    Alert.alert(
+      'Eliminar Aula',
+      `¿Estás seguro de que deseas eliminar el aula "${classroom?.name}"? Esta acción no se puede deshacer y eliminará todos los horarios asociados.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Eliminar', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteClassroom.mutateAsync(classId);
+              Toast.show({ type: 'success', text1: 'Aula eliminada correctamente' });
+              router.replace(`/admin/institution/${id}`);
+            } catch (error) {
+              Toast.show({ 
+                type: 'error', 
+                text1: 'Error', 
+                text2: 'No se pudo eliminar el aula. Verifique que no tenga dependencias activas.' 
+              });
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (loadingClassroom) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -165,6 +193,14 @@ export default function ClassroomDetailScreen() {
               {classroom?.description || 'Sin descripción'}
             </Text>
           </View>
+          <Pressable 
+            onPress={handleDeleteClassroom} 
+            style={styles.deleteHeaderBtn}
+            accessibilityRole="button" 
+            accessibilityLabel="Eliminar aula"
+          >
+            <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+          </Pressable>
         </View>
 
         {/* Stats row */}
@@ -665,5 +701,12 @@ const styles = StyleSheet.create({
   scheduleTime: { fontSize: 13, marginTop: 2 },
   deleteBtn: {
     padding: 12,
+  },
+  deleteHeaderBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
   },
 });

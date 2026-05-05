@@ -28,32 +28,9 @@ export default function CreateClassroomScreen() {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [teacherSearch, setTeacherSearch] = useState('');
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
 
   const createClassroom = useCreateClassroom();
 
-  // Fetch teachers for this institution
-  const {
-    data: teacherPages,
-    isLoading: loadingTeachers,
-    fetchNextPage,
-    hasNextPage,
-  } = useUsers({
-    institutionId,
-    role: 'TEACHER' as any,
-    search: teacherSearch || undefined,
-  });
-
-  const teachers = useMemo(() => {
-    if (!teacherPages?.pages) return [];
-    return teacherPages.pages.flatMap((page) => page.data);
-  }, [teacherPages]);
-
-  const selectedTeacher = useMemo(
-    () => teachers.find((t) => t.id === selectedTeacherId),
-    [teachers, selectedTeacherId]
-  );
 
   const handleCreate = useCallback(async () => {
     if (!name.trim()) {
@@ -66,7 +43,6 @@ export default function CreateClassroomScreen() {
         name: name.trim(),
         description: description.trim() || undefined,
         institutionId,
-        teacherId: selectedTeacherId,
       });
 
       Toast.show({ type: 'success', text1: 'Éxito', text2: 'Aula creada correctamente' });
@@ -111,92 +87,6 @@ export default function CreateClassroomScreen() {
               />
             </View>
 
-            {/* Teacher assignment - searchable dropdown */}
-            <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
-              Asignar Maestro (opcional)
-            </Text>
-
-            {selectedTeacher ? (
-              <View style={[styles.selectedTeacherCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.primary }]}>
-                <View style={[styles.teacherIcon, { backgroundColor: theme.colors.primaryLight }]}>
-                  <Text style={[styles.teacherInitial, { color: theme.colors.primary }]}>
-                    {selectedTeacher.fullName?.charAt(0) ?? '?'}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.teacherName, { color: theme.colors.text }]}>
-                    {selectedTeacher.fullName}
-                  </Text>
-                  <Text style={[styles.teacherEmail, { color: theme.colors.textSecondary }]}>
-                    {selectedTeacher.email}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => setSelectedTeacherId(null)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Quitar maestro"
-                >
-                  <Ionicons name="close-circle" size={24} color={theme.colors.textSecondary} />
-                </Pressable>
-              </View>
-            ) : (
-              <>
-                <View style={[styles.searchBar, { backgroundColor: theme.colors.card }]}>
-                  <Ionicons name="search" size={18} color={theme.colors.textSecondary} />
-                  <TextInput
-                    style={[styles.searchInput, { color: theme.colors.text }]}
-                    placeholder="Buscar maestro..."
-                    placeholderTextColor={theme.colors.textSecondary}
-                    value={teacherSearch}
-                    onChangeText={setTeacherSearch}
-                    accessibilityLabel="Buscar maestro"
-                  />
-                </View>
-
-                {loadingTeachers ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginTop: 12 }} />
-                ) : (
-                  <FlatList
-                    data={teachers}
-                    keyExtractor={(item) => item.id}
-                    scrollEnabled={false}
-                    style={styles.teacherList}
-                    renderItem={({ item }) => (
-                      <Pressable
-                        onPress={() => setSelectedTeacherId(item.id)}
-                        style={[styles.teacherCard, { backgroundColor: theme.colors.card }]}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Seleccionar ${item.fullName}`}
-                      >
-                        <View style={[styles.teacherIcon, { backgroundColor: theme.colors.primaryLight }]}>
-                          <Text style={[styles.teacherInitial, { color: theme.colors.primary }]}>
-                            {item.fullName?.charAt(0) ?? '?'}
-                          </Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.teacherName, { color: theme.colors.text }]}>
-                            {item.fullName}
-                          </Text>
-                          <Text style={[styles.teacherEmail, { color: theme.colors.textSecondary }]}>
-                            {item.email}
-                          </Text>
-                        </View>
-                        <Ionicons name="add-circle-outline" size={22} color={theme.colors.primary} />
-                      </Pressable>
-                    )}
-                    onEndReached={() => {
-                      if (hasNextPage) fetchNextPage();
-                    }}
-                    onEndReachedThreshold={0.5}
-                    ListEmptyComponent={
-                      <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                        No se encontraron maestros
-                      </Text>
-                    }
-                  />
-                )}
-              </>
-            )}
 
             <View style={styles.buttonContainer}>
               <AnimatedButton

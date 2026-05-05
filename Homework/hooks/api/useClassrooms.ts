@@ -23,7 +23,6 @@ interface CreateClassroomPayload {
   name: string;
   description?: string;
   institutionId: string;
-  teacherId?: string | null;
 }
 
 interface Subject {
@@ -137,6 +136,21 @@ export function useRemoveStudentFromClassroom(classroomId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: classroomKeys.detail(classroomId),
+      });
+    },
+  });
+}
+
+export function useDeleteClassroom() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      await api.delete(`/classrooms/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: classroomKeys.all,
       });
     },
   });
