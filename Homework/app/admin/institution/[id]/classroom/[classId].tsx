@@ -169,14 +169,14 @@ export default function ClassroomDetailScreen() {
           <View style={[styles.statCard, { backgroundColor: theme.colors.card }]}>
             <Ionicons name="people" size={20} color="#007AFF" />
             <Text style={[styles.statValue, { color: theme.colors.text }]}>
-              {classroom?._count?.students ?? 0}
+              {classroom?.students?.length ?? classroom?._count?.students ?? 0}
             </Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Estudiantes</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: theme.colors.card }]}>
             <Ionicons name="journal" size={20} color="#FF9500" />
             <Text style={[styles.statValue, { color: theme.colors.text }]}>
-              {subjects?.length ?? 0}
+              {subjects?.length ?? classroom?._count?.projects ?? 0}
             </Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Materias</Text>
           </View>

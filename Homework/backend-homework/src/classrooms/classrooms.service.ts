@@ -62,6 +62,9 @@ export class ClassroomsService {
             },
           },
         },
+        _count: {
+          select: { students: true, projects: true },
+        },
       },
     });
 
@@ -98,7 +101,15 @@ export class ClassroomsService {
   }
 
   async addStudent(id: string, studentId: string) {
-    return this.prisma.classroom.update({
+    const classroom = await this.prisma.classroom.findUnique({
+      where: { id },
+      include: { projects: true },
+    });
+
+    if (!classroom) throw new NotFoundException('Aula no encontrada');
+
+    // Add student to classroom
+    await this.prisma.classroom.update({
       where: { id },
       data: {
         students: {
@@ -106,10 +117,34 @@ export class ClassroomsService {
         },
       },
     });
+
+    // Add student to all projects (subjects) in the classroom
+    const projectMemberships = classroom.projects.map((project) => ({
+      projectId: project.id,
+      userId: studentId,
+      role: 'student',
+    }));
+
+    if (projectMemberships.length > 0) {
+      await this.prisma.projectMember.createMany({
+        data: projectMemberships,
+        skipDuplicates: true,
+      });
+    }
+
+    return { message: 'Estudiante inscrito correctamente' };
   }
 
   async removeStudent(id: string, studentId: string) {
-    return this.prisma.classroom.update({
+    const classroom = await this.prisma.classroom.findUnique({
+      where: { id },
+      include: { projects: true },
+    });
+
+    if (!classroom) throw new NotFoundException('Aula no encontrada');
+
+    // Remove student from classroom
+    await this.prisma.classroom.update({
       where: { id },
       data: {
         students: {
@@ -117,6 +152,17 @@ export class ClassroomsService {
         },
       },
     });
+
+    // Remove student from all projects in the classroom
+    const projectIds = classroom.projects.map((p) => p.id);
+    await this.prisma.projectMember.deleteMany({
+      where: {
+        userId: studentId,
+        projectId: { in: projectIds },
+      },
+    });
+
+    return { message: 'Estudiante eliminado correctamente' };
   }
 
   async getSubjects(id: string) {
