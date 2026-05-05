@@ -230,7 +230,12 @@ export class SubjectsService {
   }
 
   async getStats(id: string) {
-    const [submissions, totalTasks, submittedTasks, studentCount] = await Promise.all([
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      select: { classroomId: true },
+    });
+
+    const [submissions, totalTasks, submittedTasks, memberStudentCount, classroomCount] = await Promise.all([
       this.prisma.submission.aggregate({
         where: { task: { projectId: id }, status: 'GRADED' },
         _avg: { grade: true },
@@ -238,13 +243,16 @@ export class SubjectsService {
       this.prisma.task.count({ where: { projectId: id } }),
       this.prisma.submission.count({ where: { task: { projectId: id } } }),
       this.prisma.projectMember.count({ where: { projectId: id, role: 'student' } }),
+      project?.classroomId
+        ? this.prisma.user.count({ where: { classroomId: project.classroomId, role: 'student' } })
+        : null,
     ]);
 
     return {
       avgGrade: submissions._avg.grade || 0,
       totalTasks,
       submittedTasks,
-      studentCount: studentCount || 0,
+      studentCount: classroomCount ?? memberStudentCount ?? 0,
     };
   }
 
