@@ -17,8 +17,7 @@ export const authKeys = {
 };
 
 interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
+  access_token: string;
   user: User;
 }
 
@@ -36,8 +35,7 @@ export function useLogin() {
       return data;
     },
     onSuccess: async (data) => {
-      await SecureStore.setItemAsync('userToken', data.accessToken);
-      await SecureStore.setItemAsync('refreshToken', data.refreshToken);
+      await SecureStore.setItemAsync('userToken', data.access_token);
       queryClient.setQueryData(authKeys.profile, data.user);
     },
   });

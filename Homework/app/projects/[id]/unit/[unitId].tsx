@@ -222,27 +222,47 @@ export default function UnitTasksScreen() {
             keyExtractor={item => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
-            renderItem={({ item, index }) => (
-              <View>
-                <TaskItem
-                  task={item}
-                  index={index}
-                  onPress={() => router.push(`/tasks/${item.id}`)}
-                />
-                {/* Teacher: "Ver Entregas" button */}
-                {isTeacher && (
-                  <Pressable
-                    onPress={() => router.push({ pathname: '/tasks/[taskId]/submissions', params: { taskId: item.id } } as any)}
-                    style={[styles.submissionsBtn, { backgroundColor: theme.colors.primaryLight }]}
-                  >
-                    <Ionicons name="people-outline" size={14} color={theme.colors.primary} />
-                    <Text style={[styles.submissionsBtnText, { color: theme.colors.primary }]}>
-                      Ver entregas
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
+            renderItem={({ item, index }) => {
+              const submissionCount = (item as any)._count?.submissions ?? 0;
+              const totalStudents = (currentUnit as any)?.project?._count?.members ?? 0;
+              const submissionRate = totalStudents > 0 ? (submissionCount / totalStudents) : 0;
+
+              return (
+                <View style={styles.taskWrapper}>
+                  <TaskItem
+                    task={item}
+                    index={index}
+                    onPress={() => router.push(`/tasks/${item.id}`)}
+                  />
+                  {/* Teacher: Management Row */}
+                  {isTeacher && (
+                    <View style={styles.teacherTaskActions}>
+                      <View style={[
+                        styles.submissionBadgeMini, 
+                        { backgroundColor: submissionRate >= 0.8 ? '#34C75915' : theme.colors.primaryLight }
+                      ]}>
+                        <Text style={[
+                          styles.submissionBadgeTextMini, 
+                          { color: submissionRate >= 0.8 ? '#34C759' : theme.colors.primary }
+                        ]}>
+                          {submissionCount}/{totalStudents} entregas
+                        </Text>
+                      </View>
+                      
+                      <Pressable
+                        onPress={() => router.push({ pathname: '/tasks/[taskId]/submissions', params: { taskId: item.id } } as any)}
+                        style={[styles.submissionsBtn, { backgroundColor: theme.colors.primaryLight }]}
+                      >
+                        <Ionicons name="people-outline" size={14} color={theme.colors.primary} />
+                        <Text style={[styles.submissionsBtnText, { color: theme.colors.primary }]}>
+                          Ver entregas
+                        </Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
+              );
+            }}
             ListEmptyComponent={
               <EmptyState
                 icon="document-text-outline"
@@ -325,7 +345,34 @@ const styles = StyleSheet.create({
   headerText: { marginLeft: 12, flex: 1 },
   title: { fontSize: 20, fontWeight: '800' },
   subtitle: { fontSize: 13, fontWeight: '600' },
-  submissionsBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, marginTop: -4, marginBottom: 8, marginRight: 4 },
+  taskWrapper: {
+    marginBottom: 12,
+  },
+  teacherTaskActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: -8,
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  submissionBadgeMini: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  submissionBadgeTextMini: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  submissionsBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 5, 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 10,
+  },
   submissionsBtnText: { fontSize: 12, fontWeight: '700' },
   fab: { position: 'absolute', bottom: 20, right: 0, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

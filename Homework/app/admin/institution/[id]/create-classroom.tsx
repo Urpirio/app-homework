@@ -66,6 +66,7 @@ export default function CreateClassroomScreen() {
         name: name.trim(),
         description: description.trim() || undefined,
         institutionId,
+        teacherId: selectedTeacherId,
       });
 
       Toast.show({ type: 'success', text1: 'Éxito', text2: 'Aula creada correctamente' });

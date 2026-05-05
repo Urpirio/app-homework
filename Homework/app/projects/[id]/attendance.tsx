@@ -1,13 +1,13 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { AttendanceStatus, useRecordAttendance } from '@/hooks/api/useAttendance';
-import { useClassroom } from '@/hooks/api/useClassrooms';
+import { useProjectMembers, useSubject } from '@/hooks/api/useProjects';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -21,25 +21,49 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-export default function AttendanceScreen() {
-  const { id, classId, subjectId } = useLocalSearchParams<{ id: string; classId: string; subjectId: string }>();
+
+/**
+ * AttendanceScreen for Teachers
+ * 
+ * Permite a los docentes pasar lista de los alumnos inscritos en una materia específica.
+ */
+export default function ProjectAttendanceScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { theme } = useTheme();
-  
+
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
 
-  const { data: classroom, isLoading: loadingClassroom } = useClassroom(classId);
+  const { data: project, isLoading: loadingProject } = useSubject(id ?? '');
+  const { data: members, isLoading: loadingMembers } = useProjectMembers(id ?? '');
   const recordAttendance = useRecordAttendance();
 
-  const students = useMemo(() => classroom?.students || [], [classroom]);
+  const students = useMemo(() => {
+    if (!members) return [];
+    
+    const uniqueStudents = new Map();
+    members
+      .filter((m) => m.role === 'student')
+      .forEach((m) => {
+        if (!uniqueStudents.has(m.user.id)) {
+          uniqueStudents.set(m.user.id, {
+            id: m.user.id,
+            fullName: m.user.fullName,
+            avatarUrl: m.user.avatarUrl,
+          });
+        }
+      });
+    
+    return Array.from(uniqueStudents.values());
+  }, [members]);
 
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return students;
     const query = searchQuery.toLowerCase();
-    return students.filter((s: any) => s.fullName.toLowerCase().includes(query));
+    return students.filter((s) => s.fullName.toLowerCase().includes(query));
   }, [students, searchQuery]);
 
   const summary = useMemo(() => {
@@ -56,10 +80,10 @@ export default function AttendanceScreen() {
   }, [attendance]);
 
   // Set default status to PRESENT for all students when list loads
-  React.useEffect(() => {
+  useEffect(() => {
     if (students.length > 0 && Object.keys(attendance).length === 0) {
       const initial: Record<string, AttendanceStatus> = {};
-      students.forEach((s: any) => {
+      students.forEach((s) => {
         initial[s.id] = AttendanceStatus.PRESENT;
       });
       setAttendance(initial);
@@ -74,7 +98,7 @@ export default function AttendanceScreen() {
   const handleReset = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     const initial: Record<string, AttendanceStatus> = {};
-    students.forEach((s: any) => {
+    students.forEach((s) => {
       initial[s.id] = AttendanceStatus.PRESENT;
     });
     setAttendance(initial);
@@ -88,7 +112,7 @@ export default function AttendanceScreen() {
       }));
 
       await recordAttendance.mutateAsync({
-        projectId: subjectId,
+        projectId: id!,
         date: date.toISOString(),
         records,
       });
@@ -108,7 +132,9 @@ export default function AttendanceScreen() {
     }
   };
 
-  if (loadingClassroom) {
+  const isLoading = loadingProject || loadingMembers;
+
+  if (isLoading) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -120,7 +146,7 @@ export default function AttendanceScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
       <ThemedView style={styles.container}>
         <BackgroundShapes />
-        
+
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
@@ -129,7 +155,7 @@ export default function AttendanceScreen() {
           <View style={styles.headerTitleContainer}>
             <Text style={[styles.title, { color: theme.colors.text }]}>Pasar Lista</Text>
             <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-              {classroom?.name} · {classroom?.projects?.find((p: any) => p.id === subjectId)?.name}
+              {project?.name}
             </Text>
           </View>
         </View>
@@ -212,8 +238,8 @@ export default function AttendanceScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <StudentAttendanceItem 
-              student={item} 
+            <StudentAttendanceItem
+              student={item}
               status={attendance[item.id] || AttendanceStatus.PRESENT}
               onStatusChange={(status) => handleStatusChange(item.id, status)}
             />
@@ -222,13 +248,13 @@ export default function AttendanceScreen() {
 
         {/* Footer Action */}
         <View style={[styles.footer, { backgroundColor: theme.colors.background }]}>
-          <Pressable 
+          <Pressable
             onPress={handleSave}
             disabled={recordAttendance.isPending}
             style={[
-              styles.saveBtn, 
+              styles.saveBtn,
               { backgroundColor: theme.colors.primary },
-              recordAttendance.isPending && { opacity: 0.6 }
+              recordAttendance.isPending && { opacity: 0.6 },
             ]}
           >
             {recordAttendance.isPending ? (
@@ -246,10 +272,24 @@ export default function AttendanceScreen() {
   );
 }
 
-function StudentAttendanceItem({ student, status, onStatusChange }: { 
-  student: any; 
-  status: AttendanceStatus; 
-  onStatusChange: (s: AttendanceStatus) => void 
+function SummaryCard({ label, count, color }: { label: string; count: number; color: string }) {
+  const { theme } = useTheme();
+  return (
+    <View style={[styles.summaryCard, { backgroundColor: color + '15' }]}>
+      <Text style={[styles.summaryCount, { color }]}>{count}</Text>
+      <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
+    </View>
+  );
+}
+
+function StudentAttendanceItem({
+  student,
+  status,
+  onStatusChange,
+}: {
+  student: any;
+  status: AttendanceStatus;
+  onStatusChange: (s: AttendanceStatus) => void;
 }) {
   const { theme } = useTheme();
 
@@ -285,30 +325,30 @@ function StudentAttendanceItem({ student, status, onStatusChange }: {
       </View>
 
       <View style={styles.statusButtons}>
-        <StatusToggle 
-          activeColor="#34C759" 
-          isActive={status === AttendanceStatus.PRESENT} 
+        <StatusToggle
+          activeColor="#34C759"
+          isActive={status === AttendanceStatus.PRESENT}
           onPress={() => onStatusChange(AttendanceStatus.PRESENT)}
           label="P"
           description="Presente"
         />
-        <StatusToggle 
-          activeColor="#FF3B30" 
-          isActive={status === AttendanceStatus.ABSENT} 
+        <StatusToggle
+          activeColor="#FF3B30"
+          isActive={status === AttendanceStatus.ABSENT}
           onPress={() => onStatusChange(AttendanceStatus.ABSENT)}
           label="A"
           description="Ausente"
         />
-        <StatusToggle 
-          activeColor="#FF9500" 
-          isActive={status === AttendanceStatus.LATE} 
+        <StatusToggle
+          activeColor="#FF9500"
+          isActive={status === AttendanceStatus.LATE}
           onPress={() => onStatusChange(AttendanceStatus.LATE)}
           label="T"
           description="Tarde"
         />
-        <StatusToggle 
-          activeColor="#007AFF" 
-          isActive={status === AttendanceStatus.EXCUSED} 
+        <StatusToggle
+          activeColor="#007AFF"
+          isActive={status === AttendanceStatus.EXCUSED}
           onPress={() => onStatusChange(AttendanceStatus.EXCUSED)}
           label="E"
           description="Justif."
@@ -318,28 +358,23 @@ function StudentAttendanceItem({ student, status, onStatusChange }: {
   );
 }
 
-function SummaryCard({ label, count, color }: { label: string; count: number; color: string }) {
-  const { theme } = useTheme();
-  return (
-    <View style={[styles.summaryCard, { backgroundColor: color + '15' }]}>
-      <Text style={[styles.summaryCount, { color }]}>{count}</Text>
-      <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
-    </View>
-  );
-}
-
 function StatusToggle({ activeColor, isActive, onPress, label, description }: any) {
   const { theme } = useTheme();
   return (
     <View style={styles.toggleContainer}>
-      <Pressable 
+      <Pressable
         onPress={onPress}
         style={[
           styles.statusToggle,
-          { backgroundColor: isActive ? activeColor : theme.colors.border + '20' }
+          { backgroundColor: isActive ? activeColor : theme.colors.border + '20' },
         ]}
       >
-        <Text style={[styles.statusLabel, { color: isActive ? '#FFF' : theme.colors.textSecondary }]}>
+        <Text
+          style={[
+            styles.statusLabel,
+            { color: isActive ? '#FFF' : theme.colors.textSecondary },
+          ]}
+        >
           {label}
         </Text>
       </Pressable>

@@ -87,15 +87,16 @@ export class TasksService {
 
     if (!task) return null;
 
-    const isAdmin = user?.role === 'SUPER_ADMIN' || 
-                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === task.project.institutionId);
+    const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SCHOOL_ADMIN';
     
     const isOwner = task.project.userId === userId;
 
+    let isTeacherMember = false;
     if (!isAdmin && !isOwner) {
       const isMember = await this.prisma.projectMember.findFirst({
         where: { projectId: task.projectId, userId }
       });
+      if (isMember?.role === 'teacher') isTeacherMember = true;
       
       const isStudentInClass = await this.prisma.user.findFirst({
         where: { id: userId, classroomId: task.project.classroomId }
@@ -103,6 +104,8 @@ export class TasksService {
 
       if (!isMember && !isStudentInClass) return null;
     }
+
+    const canViewSubmissions = isAdmin || isOwner || isTeacherMember;
 
     return this.prisma.task.findUnique({
       where: { id },
@@ -117,7 +120,7 @@ export class TasksService {
         _count: {
           select: { submissions: true }
         },
-        submissions: (isAdmin || isOwner) 
+        submissions: canViewSubmissions
           ? {
               take: 5,
               orderBy: { createdAt: 'desc' },
@@ -146,8 +149,7 @@ export class TasksService {
 
     if (!existingTask) throw new Error('Tarea no encontrada');
 
-    const isAdmin = user?.role === 'SUPER_ADMIN' || 
-                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === existingTask.project.institutionId);
+    const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SCHOOL_ADMIN';
     
     const isOwner = existingTask.project.userId === userId;
 
@@ -195,8 +197,7 @@ export class TasksService {
 
     if (!task) throw new Error('Tarea no encontrada');
 
-    const isAdmin = user?.role === 'SUPER_ADMIN' || 
-                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === task.project.institutionId);
+    const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SCHOOL_ADMIN';
     
     const isOwner = task.project.userId === userId;
 

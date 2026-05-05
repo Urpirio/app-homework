@@ -1,8 +1,10 @@
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ConfirmModal } from '@/components/shared/ConfirmModal';
 import { ThemedView } from '@/components/shared/ThemedView';
+import { useProfile } from '@/hooks/api/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import api from '@/utils/api';
+import { queryClient } from '@/utils/queryClient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { router, useFocusEffect } from 'expo-router';
@@ -50,26 +52,25 @@ export default function ProfileScreen() {
   const { theme } = useTheme();
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchProfile = async () => {
-    try {
-      const res = await api.get('/auth/profile');
-      setUser(res.data);
-    } catch (e) {
-      console.error('Error fetching profile:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useFocusEffect(useCallback(() => { fetchProfile(); }, []));
+  const { data: user, isLoading: loading } = useProfile();
 
   const handleLogout = async () => {
-    await SecureStore.deleteItemAsync('userToken');
-    await SecureStore.deleteItemAsync('refreshToken');
-    router.replace('/login');
+    try {
+      // 1. Clear secure storage
+      await SecureStore.deleteItemAsync('userToken');
+      await SecureStore.deleteItemAsync('refreshToken');
+      
+      // 2. Clear React Query cache completely
+      // This is crucial to prevent the next user from seeing previous data
+      queryClient.clear();
+      
+      // 3. Redirect to login
+      router.replace('/login');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Fallback redirect
+      router.replace('/login');
+    }
   };
 
   const copyCode = async () => {

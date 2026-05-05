@@ -118,6 +118,14 @@ export default function ProjectDetailScreen() {
               </Pressable>
 
               <View style={styles.headerRight}>
+                {isTeacher && (
+                  <Pressable
+                    onPress={() => router.push(`/projects/${id}/attendance`)}
+                    style={[styles.attendanceButton, { backgroundColor: '#34C75915', marginRight: 8 }]}
+                  >
+                    <Ionicons name="people-outline" size={20} color="#34C759" />
+                  </Pressable>
+                )}
                 <Pressable
                   onPress={() =>
                     router.push(
@@ -400,6 +408,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
     gap: 6,
+  },
+  attendanceButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   chatLabel: { fontSize: 13, fontWeight: '700' },
   colorLabel: { width: 50, height: 5, borderRadius: 3, marginBottom: 16 },

@@ -286,8 +286,7 @@ export default function TaskDetailScreen() {
   const canSubmit = !isSubmitted && !isDeadlinePassed;
 
   const isTeacher = profile?.role === UserRole.TEACHER || profile?.role === UserRole.SCHOOL_ADMIN || profile?.role === UserRole.SUPER_ADMIN;
-  const isOwner = profile?.id === (task as any)?.project?.userId;
-  const canActuallySubmit = (canSubmit || canResubmit) && !isTeacher && !isOwner;
+  const canActuallySubmit = (canSubmit || canResubmit) && !isTeacher;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -306,7 +305,7 @@ export default function TaskDetailScreen() {
               {(task as any)?.project?.name}
             </Text>
           </View>
-          {(isTeacher || isOwner) && (
+          {isTeacher && (
             <View style={styles.headerActions}>
               <Pressable onPress={handleEditTask} style={styles.headerActionBtn}>
                 <Ionicons name="pencil" size={20} color={theme.colors.text} />
@@ -626,8 +625,8 @@ export default function TaskDetailScreen() {
           </View>
         )}
 
-        {/* View Submissions button for teachers/owners */}
-        {(isTeacher || isOwner) && (
+        {/* Footer actions */}
+        {isTeacher && (
           <View style={styles.footer}>
             <Pressable
               onPress={() => router.push({ pathname: '/tasks/[taskId]/submissions', params: { taskId: id } } as any)}

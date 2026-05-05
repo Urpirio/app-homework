@@ -3,6 +3,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
+import { useProfile } from '@/hooks/api/useAuth';
 import { useProjectMembers } from '@/hooks/api/useProjects';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +11,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
     FlatList,
+    Image,
     Modal,
     Pressable,
     StyleSheet,
@@ -25,6 +27,8 @@ const SubjectStudentsScreen = () => {
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
   const { theme } = useTheme();
   const [search, setSearch] = useState('');
+  const { data: profile } = useProfile();
+  const isTeacher = profile?.role === 'TEACHER' || profile?.role === 'SUPER_ADMIN' || profile?.role === 'SCHOOL_ADMIN';
   const [selectedStudent, setSelectedStudent] = useState<{
     id: string;
     name: string;
@@ -42,14 +46,22 @@ const SubjectStudentsScreen = () => {
 
   const students = useMemo(() => {
     if (!members) return [];
-    return members
+    
+    const uniqueStudents = new Map();
+    members
       .filter((m) => m.role === 'student')
-      .map((m) => ({
-        id: m.user.id,
-        name: m.user.fullName,
-        avatar: m.user.avatarUrl,
-        email: m.user.email,
-      }));
+      .forEach((m) => {
+        if (!uniqueStudents.has(m.user.id)) {
+          uniqueStudents.set(m.user.id, {
+            id: m.user.id,
+            name: m.user.fullName,
+            avatar: m.user.avatarUrl,
+            email: m.user.email,
+          });
+        }
+      });
+    
+    return Array.from(uniqueStudents.values());
   }, [members]);
 
   const filteredStudents = useMemo(() => {
@@ -79,7 +91,16 @@ const SubjectStudentsScreen = () => {
                 {name || 'Materia'}
               </Text>
             </View>
-            <View style={{ width: 40 }} />
+            {isTeacher ? (
+              <Pressable
+                onPress={() => router.push(`/projects/${id}/attendance`)}
+                style={[styles.attendanceButton, { backgroundColor: '#34C75915' }]}
+              >
+                <Ionicons name="people-outline" size={20} color="#34C759" />
+              </Pressable>
+            ) : (
+              <View style={{ width: 40 }} />
+            )}
           </View>
 
           {isLoading ? (
@@ -127,35 +148,52 @@ const SubjectStudentsScreen = () => {
                   <Animated.View entering={FadeInDown.delay(index * 50)}>
                     <Pressable
                       onPress={() => handleStudentPress(item)}
-                      style={[styles.studentCard, { backgroundColor: theme.colors.card }]}
+                      style={({ pressed }) => [
+                        styles.studentCard,
+                        { 
+                          backgroundColor: theme.colors.card,
+                          borderColor: theme.colors.border + '40',
+                          opacity: pressed ? 0.9 : 1,
+                          transform: [{ scale: pressed ? 0.98 : 1 }]
+                        }
+                      ]}
                     >
                       <View
                         style={[
-                          styles.avatar,
+                          styles.avatarContainer,
                           { backgroundColor: theme.colors.primaryLight },
                         ]}
                       >
-                        <Text
-                          style={[styles.avatarText, { color: theme.colors.primary }]}
-                        >
-                          {item.name.charAt(0)}
-                        </Text>
+                        {item.avatar ? (
+                          <Image source={{ uri: item.avatar }} style={styles.avatarImage} />
+                        ) : (
+                          <Text
+                            style={[styles.avatarText, { color: theme.colors.primary }]}
+                          >
+                            {item.name.charAt(0)}
+                          </Text>
+                        )}
                       </View>
                       <View style={styles.studentInfo}>
                         <Text style={[styles.studentName, { color: theme.colors.text }]}>
                           {item.name}
                         </Text>
-                        <Text
-                          style={[styles.studentRole, { color: theme.colors.textSecondary }]}
-                        >
-                          Estudiante
-                        </Text>
+                        <View style={styles.roleBadge}>
+                          <View style={[styles.statusDot, { backgroundColor: '#34C759' }]} />
+                          <Text
+                            style={[styles.studentRole, { color: theme.colors.textSecondary }]}
+                          >
+                            Estudiante Activo
+                          </Text>
+                        </View>
                       </View>
-                      <Ionicons
-                        name="person-outline"
-                        size={20}
-                        color={theme.colors.border}
-                      />
+                      <View style={[styles.actionIcon, { backgroundColor: theme.colors.background }]}>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={16}
+                          color={theme.colors.primary}
+                        />
+                      </View>
                     </Pressable>
                   </Animated.View>
                 )}
@@ -244,6 +282,13 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   backButton: { width: 40, height: 40, justifyContent: 'center' },
+  attendanceButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   headerTitleContainer: { alignItems: 'center' },
   title: { fontSize: 22, fontWeight: '900' },
   subtitle: { fontSize: 13, fontWeight: '600' },
@@ -263,22 +308,44 @@ const styles = StyleSheet.create({
   studentCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 20,
-    marginBottom: 10,
+    padding: 16,
+    borderRadius: 24,
+    marginBottom: 12,
+    borderWidth: 1,
   },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
+  avatarContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
-  avatarText: { fontSize: 20, fontWeight: '800' },
-  studentInfo: { flex: 1, marginLeft: 14 },
-  studentName: { fontSize: 16, fontWeight: '700' },
-  studentRole: { fontSize: 12, fontWeight: '500' },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarText: { fontSize: 22, fontWeight: '800' },
+  studentInfo: { flex: 1, marginLeft: 16 },
+  studentName: { fontSize: 17, fontWeight: '800', marginBottom: 4 },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  studentRole: { fontSize: 13, fontWeight: '600' },
+  actionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

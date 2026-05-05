@@ -4,14 +4,14 @@ import { AnimatedLogo } from '@/components/splash/AnimatedLogo';
 import { KeyboardAvoidingContainer } from '@/components/shared/KeyboardAvoidingContainer';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
+import { useLogin } from '@/hooks/api/useAuth';
 import { LoginCredentials } from '@/types/auth';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React from 'react';
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import api from '@/utils/api';
-import * as SecureStore from 'expo-secure-store';
+import { useState } from 'react';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -53,25 +53,17 @@ export default function LoginScreen() {
    *
    * **Validates: Requirements 10.1, 10.2, 10.3, 10.5**
    */
-  const handleSubmit = async (credentials: LoginCredentials): Promise<void> => {
-    setIsAuthenticating(true);
+  const login = useLogin();
 
+  const handleSubmit = async (credentials: LoginCredentials): Promise<void> => {
     try {
-      // Llamada real al backend en Railway
-      const response = await api.post('/auth/login', credentials);
-      const { access_token } = response.data;
-      
-      // Guardar token de forma segura
-      await SecureStore.setItemAsync('userToken', access_token);
-      
+      await login.mutateAsync(credentials);
       console.log('Authentication successful');
       router.replace('/home');
     } catch (error: any) {
       console.error('Authentication error:', error.response?.data || error.message);
       const errorMessage = error.response?.data?.message || 'Correo o contraseña incorrectos';
       throw new Error(Array.isArray(errorMessage) ? errorMessage[0] : errorMessage);
-    } finally {
-      setIsAuthenticating(false);
     }
   };
 

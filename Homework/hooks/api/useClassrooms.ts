@@ -23,6 +23,7 @@ interface CreateClassroomPayload {
   name: string;
   description?: string;
   institutionId: string;
+  teacherId?: string | null;
 }
 
 interface Subject {

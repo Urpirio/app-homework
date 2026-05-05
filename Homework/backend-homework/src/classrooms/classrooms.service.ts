@@ -6,24 +6,42 @@ import { Prisma, Role } from '@prisma/client';
 export class ClassroomsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(user: any, data: Omit<Prisma.ClassroomCreateInput, 'institution'>) {
+  async create(user: any, data: any) {
     // Only admins can create classrooms
     if (user.role !== Role.SUPER_ADMIN && user.role !== Role.SCHOOL_ADMIN) {
       throw new ForbiddenException('No tienes permiso para crear aulas');
     }
 
-    const institutionId = user.role === Role.SUPER_ADMIN ? (data as any).institutionId : user.institutionId;
+    const { institutionId: bodyInstitutionId, teacherId, ...rest } = data;
+    const institutionId = user.role === Role.SUPER_ADMIN ? bodyInstitutionId : user.institutionId;
 
     if (!institutionId) {
       throw new NotFoundException('Se requiere el ID de la institución');
     }
 
-    return this.prisma.classroom.create({
+    const classroom = await this.prisma.classroom.create({
       data: {
-        ...data,
+        ...rest,
         institution: { connect: { id: institutionId } },
-      } as any,
+      },
     });
+
+    // If a teacher was selected, create a default "General" subject for that teacher in this classroom
+    if (teacherId) {
+      await this.prisma.project.create({
+        data: {
+          name: 'Materia General',
+          description: `Materia principal para el aula ${classroom.name}`,
+          color: '#4F46E5', // Default Indigo color
+          icon: 'journal-outline',
+          institution: { connect: { id: institutionId } },
+          classroom: { connect: { id: classroom.id } },
+          user: { connect: { id: teacherId } },
+        },
+      });
+    }
+
+    return classroom;
   }
 
   async findAllForInstitution(institutionId: string) {
