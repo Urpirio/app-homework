@@ -1,3 +1,11 @@
+import { ClassroomModal } from '@/components/login/ClassroomModal';
+import { ClassroomOptionsModal } from '@/components/login/ClassroomOptionsModal';
+import { EnrollmentOptionsModal } from '@/components/login/EnrollmentOptionsModal';
+import { BackgroundShapes } from '@/components/login/BackgroundShapes';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { ErrorState } from '@/components/shared/ErrorState';
+import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
+import { ThemedView } from '@/components/shared/ThemedView';
 import { useInstitutionClassrooms } from '@/hooks/api/useClassrooms';
 import { useInstitution as useInstitutionQuery, useInstitutionStats } from '@/hooks/api/useInstitutions';
 import { useUsers } from '@/hooks/api/useUsers';
@@ -5,7 +13,19 @@ import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import {
+  Dimensions,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { BarChart, LineChart } from 'react-native-chart-kit';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 type TabKey = 'overview' | 'classrooms' | 'users' | 'settings';

@@ -11,19 +11,31 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Institution } from '../../types/institution';
 import api from '../../utils/api';
 
-export const institutionKeys = {
-  all: ['institutions'] as const,
-  list: (search?: string) => ['institutions', 'list', search] as const,
-  detail: (id: string) => ['institutions', 'detail', id] as const,
-  stats: (id: string) => ['institutions', 'stats', id] as const,
-};
-
 interface InstitutionStats {
   students: number;
   teachers: number;
   classrooms: number;
   avgGrade: number;
 }
+
+export interface AnalyticsData {
+  enrollmentTrend: { labels: string[]; data: number[] };
+  gradeDistribution: { labels: string[]; data: number[] };
+  taskCompletion: { todo: number; inProgress: number; done: number };
+  kpis: {
+    avgResponseTime: number;
+    submissionRate: number;
+    engagementScore: number;
+  };
+}
+
+export const institutionKeys = {
+  all: ['institutions'] as const,
+  list: (search?: string) => ['institutions', 'list', search] as const,
+  detail: (id: string) => ['institutions', 'detail', id] as const,
+  stats: (id: string) => ['institutions', 'stats', id] as const,
+  analytics: (id: string) => ['institutions', 'analytics', id] as const,
+};
 
 interface CreateInstitutionPayload {
   name: string;
@@ -77,6 +89,19 @@ export function useInstitutionStats(id: string) {
     queryFn: async (): Promise<InstitutionStats> => {
       const { data } = await api.get<InstitutionStats>(
         `/institutions/${id}/stats`
+      );
+      return data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useInstitutionAnalytics(id: string) {
+  return useQuery({
+    queryKey: institutionKeys.analytics(id),
+    queryFn: async (): Promise<AnalyticsData> => {
+      const { data } = await api.get<AnalyticsData>(
+        `/institutions/${id}/analytics`
       );
       return data;
     },

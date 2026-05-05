@@ -406,7 +406,18 @@ export function AnalyticsPanel({
   const { institutionId } = useInstitution();
   const [selectedRange, setSelectedRange] = useState<DateRangePreset>('30d');
 
-  const analytics = data ?? PLACEHOLDER_DATA;
+  const analytics = useMemo(() => {
+    if (!data) return PLACEHOLDER_DATA;
+    return {
+      enrollmentTrend: data.enrollmentTrend ?? PLACEHOLDER_DATA.enrollmentTrend,
+      gradeDistribution: data.gradeDistribution ?? PLACEHOLDER_DATA.gradeDistribution,
+      taskCompletion: data.taskCompletion ?? PLACEHOLDER_DATA.taskCompletion,
+      kpis: {
+        ...PLACEHOLDER_DATA.kpis,
+        ...(data.kpis || {}),
+      },
+    };
+  }, [data]);
 
   const handleRangeChange = (preset: DateRangePreset) => {
     setSelectedRange(preset);

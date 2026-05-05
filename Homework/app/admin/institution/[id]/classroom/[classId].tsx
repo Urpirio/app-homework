@@ -143,7 +143,7 @@ export default function ClassroomDetailScreen() {
             try {
               await deleteClassroom.mutateAsync(classId);
               Toast.show({ type: 'success', text1: 'Aula eliminada correctamente' });
-              router.replace(`/admin/institution/${id}`);
+              router.back();
             } catch (error) {
               Toast.show({ 
                 type: 'error', 

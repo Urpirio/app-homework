@@ -77,4 +77,10 @@ export class InstitutionsController {
   async getAdmins(@Param('id') id: string) {
     return this.institutionsService.getAdmins(id);
   }
+
+  @Get(':id/analytics')
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
+  async getAnalytics(@Param('id') id: string) {
+    return this.institutionsService.getAnalytics(id);
+  }
 }

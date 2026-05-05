@@ -236,4 +236,108 @@ export class InstitutionsService {
       },
     });
   }
+
+  async getAnalytics(id: string) {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const [
+      students,
+      tasks,
+      submissions,
+      gradedSubmissions,
+    ] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { institutionId: id, role: Role.STUDENT, createdAt: { gte: sixMonthsAgo } },
+        select: { createdAt: true },
+      }),
+      this.prisma.task.count({
+        where: { project: { institutionId: id } },
+      }),
+      this.prisma.submission.findMany({
+        where: { student: { institutionId: id } },
+        select: { status: true, grade: true, createdAt: true, updatedAt: true },
+      }),
+      this.prisma.user.count({
+        where: { institutionId: id, role: Role.STUDENT },
+      }),
+    ]);
+
+    // 1. Enrollment Trend (Last 6 Months)
+    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const trendMap = new Map<string, number>();
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const monthLabel = monthNames[d.getMonth()];
+      trendMap.set(monthLabel, 0);
+    }
+
+    students.forEach(s => {
+      const monthLabel = monthNames[s.createdAt.getMonth()];
+      if (trendMap.has(monthLabel)) {
+        trendMap.set(monthLabel, (trendMap.get(monthLabel) || 0) + 1);
+      }
+    });
+
+    const enrollmentTrend = {
+      labels: Array.from(trendMap.keys()),
+      data: Array.from(trendMap.values()),
+    };
+
+    // 2. Grade Distribution
+    const ranges = ['0-20', '21-40', '41-60', '61-80', '81-100'];
+    const distData = [0, 0, 0, 0, 0];
+
+    submissions.forEach(s => {
+      if (s.status === 'GRADED' && s.grade !== null) {
+        const g = s.grade;
+        if (g <= 20) distData[0]++;
+        else if (g <= 40) distData[1]++;
+        else if (g <= 60) distData[2]++;
+        else if (g <= 80) distData[3]++;
+        else distData[4]++;
+      }
+    });
+
+    const gradeDistribution = {
+      labels: ranges,
+      data: distData,
+    };
+
+    // 3. Task Completion
+    const done = submissions.filter(s => s.status === 'GRADED').length;
+    const inProgress = submissions.filter(s => s.status === 'SUBMITTED').length;
+    const totalExpected = gradedSubmissions * tasks;
+    const todo = Math.max(0, totalExpected - (done + inProgress));
+
+    const taskCompletion = { todo, inProgress, done };
+
+    // 4. KPIs
+    let totalResponseTime = 0;
+    let gradedCount = 0;
+    submissions.forEach(s => {
+      if (s.status === 'GRADED') {
+        const diff = (s.updatedAt.getTime() - s.createdAt.getTime()) / (1000 * 60); // minutes
+        totalResponseTime += diff;
+        gradedCount++;
+      }
+    });
+
+    const avgResponseTime = gradedCount > 0 ? Math.round(totalResponseTime / gradedCount) : 0;
+    const submissionRate = totalExpected > 0 ? Math.round(((done + inProgress) / totalExpected) * 100) : 0;
+    const engagementScore = gradedSubmissions > 0 ? Math.min(100, Math.round((submissions.length / gradedSubmissions) * 20)) : 0; // Arbitrary score: 5 submissions per student = 100%
+
+    return {
+      enrollmentTrend,
+      gradeDistribution,
+      taskCompletion,
+      kpis: {
+        avgResponseTime,
+        submissionRate,
+        engagementScore,
+      },
+    };
+  }
 }
