@@ -78,14 +78,33 @@ export class ProjectsService {
   }
 
   async findOne(id: string, userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, institutionId: true },
+    });
+
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      select: { userId: true, institutionId: true },
+    });
+
+    if (!project) return null;
+
+    const isAdmin = user?.role === 'SUPER_ADMIN' || 
+                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === project.institutionId);
+    
+    const isOwner = project.userId === userId;
+
+    const whereClause: any = { id };
+    
+    if (!isAdmin && !isOwner) {
+      whereClause.OR = [
+        { members: { some: { userId } } },
+      ];
+    }
+
     return this.prisma.project.findFirst({
-      where: {
-        id,
-        OR: [
-          { userId },
-          { members: { some: { userId } } },
-        ],
-      },
+      where: whereClause,
       include: {
         units: { 
           orderBy: { order: 'asc' },
@@ -182,18 +201,28 @@ export class ProjectsService {
   }
 
   async getMembers(projectId: string, userId: string) {
-    // Verificar acceso (dueño o miembro)
-    const project = await this.prisma.project.findFirst({
-      where: {
-        id: projectId,
-        OR: [
-          { userId },
-          { members: { some: { userId } } },
-        ],
-      },
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, institutionId: true },
     });
-    if (!project) {
-      throw new Error('Proyecto no encontrado.');
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { userId: true, institutionId: true },
+    });
+
+    if (!project) throw new Error('Proyecto no encontrado.');
+
+    const isAdmin = user?.role === 'SUPER_ADMIN' || 
+                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === project.institutionId);
+    
+    const isOwner = project.userId === userId;
+
+    if (!isAdmin && !isOwner) {
+      const isMember = await this.prisma.projectMember.findFirst({
+        where: { projectId, userId },
+      });
+      if (!isMember) throw new Error('Acceso denegado.');
     }
 
     return this.prisma.projectMember.findMany({
@@ -271,16 +300,33 @@ export class ProjectsService {
   }
 
   async getUnits(projectId: string, userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, institutionId: true },
+    });
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { userId: true, institutionId: true },
+    });
+
+    if (!project) throw new Error('Proyecto no encontrado');
+
+    const isAdmin = user?.role === 'SUPER_ADMIN' || 
+                   (user?.role === 'SCHOOL_ADMIN' && user?.institutionId === project.institutionId);
+    
+    const isOwner = project.userId === userId;
+    
+    const whereClause: any = { projectId };
+    
+    if (!isAdmin && !isOwner) {
+      whereClause.project = {
+        members: { some: { userId } }
+      };
+    }
+
     return this.prisma.unit.findMany({
-      where: { 
-        projectId,
-        project: {
-          OR: [
-            { userId },
-            { members: { some: { userId } } }
-          ]
-        }
-      },
+      where: whereClause,
       orderBy: { order: 'asc' },
       include: {
         tasks: {
