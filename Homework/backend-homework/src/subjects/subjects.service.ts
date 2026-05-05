@@ -244,7 +244,7 @@ export class SubjectsService {
       this.prisma.submission.count({ where: { task: { projectId: id } } }),
       this.prisma.projectMember.count({ where: { projectId: id, role: 'student' } }),
       project?.classroomId
-        ? this.prisma.user.count({ where: { classroomId: project.classroomId, role: 'student' } })
+        ? this.prisma.user.count({ where: { classroomId: project.classroomId, role: 'STUDENT' } })
         : null,
     ]);
 
