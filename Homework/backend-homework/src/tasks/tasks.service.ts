@@ -108,13 +108,27 @@ export class TasksService {
       where: { id },
       include: {
         project: {
-          include: { user: { select: { fullName: true } } }
+          include: { 
+            user: { select: { fullName: true } },
+            _count: { select: { members: { where: { role: 'student' } } } }
+          }
         },
         unit: true,
-        submissions: {
-          where: { studentId: userId },
-          take: 1
-        }
+        _count: {
+          select: { submissions: true }
+        },
+        submissions: (isAdmin || isOwner) 
+          ? {
+              take: 5,
+              orderBy: { createdAt: 'desc' },
+              include: {
+                student: { select: { id: true, fullName: true, avatarUrl: true } }
+              }
+            }
+          : {
+              where: { studentId: userId },
+              take: 1
+            }
       },
     });
   }

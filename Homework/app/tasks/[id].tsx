@@ -253,8 +253,19 @@ export default function TaskDetailScreen() {
           {error ? (
             <ErrorState
               error={error}
-              onRetry={() => refetch()}
+              onRetry={() => {
+                console.log('Retrying fetch for taskId:', taskId);
+                refetch();
+              }}
               onBack={() => router.back()}
+            />
+          ) : !task ? (
+            <EmptyState
+              icon="lock-closed-outline"
+              title="Acceso Denegado o Tarea inexistente"
+              message="No tienes permisos para ver esta tarea o el ID es incorrecto. Verifica que la materia pertenezca a tu institución."
+              actionLabel="Volver"
+              onAction={() => router.back()}
             />
           ) : (
             <EmptyState
@@ -366,19 +377,23 @@ export default function TaskDetailScreen() {
                   style={[
                     styles.statusText,
                     {
-                      color: isDeadlinePassed && !isSubmitted
+                      color: isDeadlinePassed
                         ? '#C62828'
-                        : isSubmitted
-                          ? '#2E7D32'
-                          : '#EF6C00',
+                        : isTeacher
+                          ? '#007AFF'
+                          : isSubmitted
+                            ? '#2E7D32'
+                            : '#EF6C00',
                     },
                   ]}
                 >
-                  {isDeadlinePassed && !isSubmitted
-                    ? 'Fecha límite vencida'
-                    : isSubmitted
-                      ? 'Tarea Entregada'
-                      : 'Pendiente de Entrega'}
+                  {isTeacher
+                    ? (isDeadlinePassed ? 'Plazo Vencido' : 'Tarea Activa')
+                    : isDeadlinePassed && !isSubmitted
+                      ? 'Fecha límite vencida'
+                      : isSubmitted
+                        ? 'Tarea Entregada'
+                        : 'Pendiente de Entrega'}
                 </Text>
               </View>
 
@@ -413,118 +428,184 @@ export default function TaskDetailScreen() {
                 </View>
               )}
 
-              {/* Submission Area */}
-              <View style={styles.submissionArea}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                  Tu Entrega
-                </Text>
-                {isSubmitted ? (
-                  <View style={[styles.subCard, { backgroundColor: theme.colors.card }]}>
-                    <View style={styles.subHeader}>
-                      <Ionicons
-                        name="document-text"
-                        size={24}
-                        color={theme.colors.primary}
-                      />
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={[styles.subFileName, { color: theme.colors.text }]}>
-                          {submission.fileUrl
-                            ? submission.fileUrl.split('/').pop() || 'Archivo de entrega'
-                            : 'Entrega de texto'}
-                        </Text>
-                        <Text
-                          style={[styles.subDate, { color: theme.colors.textSecondary }]}
-                        >
-                          Enviado el{' '}
-                          {new Date(submission.createdAt).toLocaleString()}
-                        </Text>
-                        {submission.updatedAt &&
-                          submission.updatedAt !== submission.createdAt && (
+              {/* Teacher/Admin Stats Section */}
+              {isTeacher && (
+                <View style={styles.teacherStatsSection}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                    Estado del Grupo
+                  </Text>
+                  <View style={styles.statsGrid}>
+                    <View style={[styles.statItem, { backgroundColor: theme.colors.card }]}>
+                      <Text style={[styles.statNum, { color: theme.colors.primary }]}>
+                        { (task as any)._count?.submissions ?? 0 }
+                      </Text>
+                      <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                        Entregas
+                      </Text>
+                    </View>
+                    <View style={[styles.statItem, { backgroundColor: theme.colors.card }]}>
+                      <Text style={[styles.statNum, { color: '#5856D6' }]}>
+                        { (task as any).project?._count?.members ?? 0 }
+                      </Text>
+                      <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                        Alumnos
+                      </Text>
+                    </View>
+                    <View style={[styles.statItem, { backgroundColor: theme.colors.card }]}>
+                      <Text style={[styles.statNum, { color: '#34C759' }]}>
+                        { (task as any).maxGrade ?? 100 }
+                      </Text>
+                      <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                        Puntos
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Recent Submissions for Teachers */}
+                  <Text style={[styles.sectionTitle, { color: theme.colors.text, marginTop: 24 }]}>
+                    Entregas Recientes
+                  </Text>
+                  {(task as any).submissions && (task as any).submissions.length > 0 ? (
+                    (task as any).submissions.map((sub: any) => (
+                      <Pressable 
+                        key={sub.id} 
+                        style={[styles.miniSubCard, { backgroundColor: theme.colors.card }]}
+                        onPress={() => router.push({ pathname: '/tasks/[taskId]/submissions', params: { taskId: id } } as any)}
+                      >
+                        <View style={styles.miniSubInfo}>
+                          <Text style={[styles.miniSubStudent, { color: theme.colors.text }]}>
+                            {sub.student?.fullName}
+                          </Text>
+                          <Text style={[styles.miniSubDate, { color: theme.colors.textSecondary }]}>
+                            {new Date(sub.createdAt).toLocaleDateString()}
+                          </Text>
+                        </View>
+                        <View style={[
+                          styles.miniSubBadge, 
+                          { backgroundColor: sub.status === 'GRADED' ? '#34C75915' : '#FF950015' }
+                        ]}>
+                          <Text style={[
+                            styles.miniSubBadgeText, 
+                            { color: sub.status === 'GRADED' ? '#34C759' : '#FF9500' }
+                          ]}>
+                            {sub.status === 'GRADED' ? 'Calificado' : 'Pendiente'}
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color={theme.colors.border} />
+                      </Pressable>
+                    ))
+                  ) : (
+                    <View style={[styles.emptySub, { backgroundColor: theme.colors.card }]}>
+                      <Text style={[styles.emptySubText, { color: theme.colors.textSecondary }]}>
+                        Aún no hay entregas para esta tarea
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Student Submission Area (Only for students) */}
+              {!isTeacher && (
+                <View style={styles.submissionArea}>
+                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                    Tu Entrega
+                  </Text>
+                  {isSubmitted ? (
+                    <View style={[styles.subCard, { backgroundColor: theme.colors.card }]}>
+                      <View style={styles.subHeader}>
+                        <Ionicons
+                          name="document-text"
+                          size={24}
+                          color={theme.colors.primary}
+                        />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={[styles.subFileName, { color: theme.colors.text }]}>
+                            {submission.fileUrl
+                              ? submission.fileUrl.split('/').pop() || 'Archivo de entrega'
+                              : 'Entrega de texto'}
+                          </Text>
+                          <Text
+                            style={[styles.subDate, { color: theme.colors.textSecondary }]}
+                          >
+                            Enviado el{' '}
+                            {new Date(submission.createdAt).toLocaleString()}
+                          </Text>
+                        </View>
+                        {submission.grade != null && (
+                          <View
+                            style={[
+                              styles.gradeBadge,
+                              { backgroundColor: theme.colors.primaryLight },
+                            ]}
+                          >
                             <Text
-                              style={[
-                                styles.subDate,
-                                { color: theme.colors.textSecondary },
-                              ]}
+                              style={[styles.gradeText, { color: theme.colors.primary }]}
                             >
-                              Actualizado el{' '}
-                              {new Date(submission.updatedAt).toLocaleString()}
+                              {submission.grade}
                             </Text>
-                          )}
+                          </View>
+                        )}
                       </View>
-                      {submission.grade != null && (
+                      {submission.content ? (
                         <View
                           style={[
-                            styles.gradeBadge,
-                            { backgroundColor: theme.colors.primaryLight },
+                            styles.commentSection,
+                            { backgroundColor: theme.colors.background },
                           ]}
                         >
                           <Text
-                            style={[styles.gradeText, { color: theme.colors.primary }]}
+                            style={[
+                              styles.feedbackTitle,
+                              { color: theme.colors.textSecondary },
+                            ]}
                           >
-                            {submission.grade}
+                            Tu comentario:
+                          </Text>
+                          <Text style={[styles.feedbackText, { color: theme.colors.text }]}>
+                            {submission.content}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
+                      {submission.feedback ? (
+                        <View
+                          style={[
+                            styles.feedback,
+                            { backgroundColor: theme.colors.background },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.feedbackTitle,
+                              { color: theme.colors.textSecondary },
+                            ]}
+                          >
+                            Feedback del Maestro:
+                          </Text>
+                          <Text style={[styles.feedbackText, { color: theme.colors.text }]}>
+                            {submission.feedback}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
-                    {submission.content ? (
-                      <View
-                        style={[
-                          styles.commentSection,
-                          { backgroundColor: theme.colors.background },
-                        ]}
+                  ) : (
+                    <View style={[styles.emptySub, { backgroundColor: theme.colors.card }]}>
+                      <Ionicons
+                        name="cloud-upload-outline"
+                        size={32}
+                        color={theme.colors.textSecondary}
+                        style={{ opacity: 0.5 }}
+                      />
+                      <Text
+                        style={[styles.emptySubText, { color: theme.colors.textSecondary }]}
                       >
-                        <Text
-                          style={[
-                            styles.feedbackTitle,
-                            { color: theme.colors.textSecondary },
-                          ]}
-                        >
-                          Tu comentario:
-                        </Text>
-                        <Text style={[styles.feedbackText, { color: theme.colors.text }]}>
-                          {submission.content}
-                        </Text>
-                      </View>
-                    ) : null}
-                    {submission.feedback ? (
-                      <View
-                        style={[
-                          styles.feedback,
-                          { backgroundColor: theme.colors.background },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.feedbackTitle,
-                            { color: theme.colors.textSecondary },
-                          ]}
-                        >
-                          Feedback del Maestro:
-                        </Text>
-                        <Text style={[styles.feedbackText, { color: theme.colors.text }]}>
-                          {submission.feedback}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                ) : (
-                  <View style={[styles.emptySub, { backgroundColor: theme.colors.card }]}>
-                    <Ionicons
-                      name="cloud-upload-outline"
-                      size={32}
-                      color={theme.colors.textSecondary}
-                      style={{ opacity: 0.5 }}
-                    />
-                    <Text
-                      style={[styles.emptySubText, { color: theme.colors.textSecondary }]}
-                    >
-                      {isDeadlinePassed
-                        ? 'La fecha límite ha pasado'
-                        : 'Sin entrega realizada'}
-                    </Text>
-                  </View>
-                )}
-              </View>
+                        {isDeadlinePassed
+                          ? 'La fecha límite ha pasado'
+                          : 'Sin entrega realizada'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </Animated.View>
           </View>
           <View style={{ height: 120 }} />
@@ -759,6 +840,58 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   resName: { flex: 1, fontSize: 14, fontWeight: '600' },
+  teacherStatsSection: {
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  statItem: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  statNum: {
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  miniSubCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 18,
+    marginBottom: 8,
+    gap: 12,
+  },
+  miniSubInfo: {
+    flex: 1,
+  },
+  miniSubStudent: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  miniSubDate: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  miniSubBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  miniSubBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
   submissionArea: { marginTop: 10 },
   emptySub: { padding: 24, borderRadius: 24, alignItems: 'center', gap: 8 },
   emptySubText: { fontSize: 13, fontWeight: '600' },

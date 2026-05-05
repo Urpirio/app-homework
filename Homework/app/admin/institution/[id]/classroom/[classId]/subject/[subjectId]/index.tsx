@@ -545,44 +545,81 @@ export default function SubjectDetailScreen() {
                 </Text>
               </View>
             ) : (
-              filteredTasks.map((task: any) => (
-                <Pressable
-                  key={task.id}
-                  onPress={() =>
-                    router.push(
-                      `/tasks/${task.id}`
-                    )
-                  }
-                  style={({ pressed }) => [
-                    styles.taskCard,
-                    {
-                      backgroundColor: theme.colors.card,
-                      opacity: pressed ? 0.7 : 1,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[styles.taskIcon, { backgroundColor: theme.colors.primaryLight }]}
+              filteredTasks.map((task: any) => {
+                const submissionCount = task._count?.submissions ?? 0;
+                const totalStudents = stats?.studentCount ?? 0;
+                const submissionRate = totalStudents > 0 ? (submissionCount / totalStudents) : 0;
+                
+                return (
+                  <Pressable
+                    key={task.id}
+                    onPress={() =>
+                      router.push(
+                        `/tasks/${task.id}`
+                      )
+                    }
+                    style={({ pressed }) => [
+                      styles.taskCard,
+                      {
+                        backgroundColor: theme.colors.card,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
                   >
-                    <Ionicons name="clipboard" size={22} color={theme.colors.primary} />
-                  </View>
-                  <View style={styles.taskInfo}>
-                    <Text style={[styles.taskTitle, { color: theme.colors.text }]}>
-                      {task.title}
-                    </Text>
-                    {task.dueDate && (
-                      <Text style={[styles.taskDeadline, { color: theme.colors.textSecondary }]}>
-                        Fecha límite: {new Date(task.dueDate).toLocaleDateString()}
-                      </Text>
-                    )}
-                    <View style={styles.taskBadges}>
-                      <StatusBadge status={task.status} theme={theme} />
-                      {task.type && <TypeBadge type={task.type} theme={theme} />}
+                    <View
+                      style={[styles.taskIcon, { backgroundColor: theme.colors.primaryLight }]}
+                    >
+                      <Ionicons 
+                        name={task.type === 'EXAM' ? 'school' : 'clipboard'} 
+                        size={22} 
+                        color={theme.colors.primary} 
+                      />
                     </View>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={theme.colors.border} />
-                </Pressable>
-              ))
+                    <View style={styles.taskInfo}>
+                      <View style={styles.taskHeaderRow}>
+                        <Text style={[styles.taskTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                          {task.title}
+                        </Text>
+                        <View style={[
+                          styles.submissionBadge, 
+                          { backgroundColor: submissionRate >= 0.8 ? '#34C75915' : theme.colors.primaryLight }
+                        ]}>
+                          <Text style={[
+                            styles.submissionBadgeText, 
+                            { color: submissionRate >= 0.8 ? '#34C759' : theme.colors.primary }
+                          ]}>
+                            {submissionCount}/{totalStudents} entregas
+                          </Text>
+                        </View>
+                      </View>
+
+                      {task.description && (
+                        <Text 
+                          style={[styles.taskDescription, { color: theme.colors.textSecondary }]} 
+                          numberOfLines={2}
+                        >
+                          {task.description}
+                        </Text>
+                      )}
+
+                      <View style={styles.taskFooter}>
+                        {task.dueDate && (
+                          <View style={styles.deadlineRow}>
+                            <Ionicons name="time-outline" size={14} color={theme.colors.textSecondary} />
+                            <Text style={[styles.taskDeadline, { color: theme.colors.textSecondary }]}>
+                              Límite: {new Date(task.dueDate).toLocaleDateString()}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={styles.taskBadges}>
+                          {task.type && <TypeBadge type={task.type} theme={theme} />}
+                        </View>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={theme.colors.border} />
+                  </Pressable>
+                );
+              })
             )}
           </View>
 
@@ -859,18 +896,50 @@ const styles = StyleSheet.create({
   taskInfo: {
     flex: 1,
   },
+  taskHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   taskTitle: {
     fontSize: 15,
     fontWeight: '700',
+    flex: 1,
+    marginRight: 8,
+  },
+  submissionBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  submissionBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  taskDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 8,
+    opacity: 0.8,
+  },
+  taskFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  deadlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   taskDeadline: {
     fontSize: 12,
-    marginTop: 2,
   },
   taskBadges: {
     flexDirection: 'row',
     gap: 6,
-    marginTop: 6,
   },
   badge: {
     paddingHorizontal: 8,
