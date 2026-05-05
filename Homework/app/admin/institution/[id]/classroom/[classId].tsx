@@ -241,7 +241,7 @@ export default function ClassroomDetailScreen() {
           )}
           {activeTab === 'students' && (
             <StudentsTab 
-              students={(classroom as any)?.students ?? []} 
+              students={classroom?.students ?? []} 
               onAddStudent={() => setEnrollModalVisible(true)}
               onRemoveStudent={handleRemoveStudent}
               onStudentPress={(studentId: string) => router.push(`/admin/institution/${id}/student/${studentId}`)}
@@ -250,7 +250,7 @@ export default function ClassroomDetailScreen() {
           {activeTab === 'schedule' && (
             <ScheduleTab
               schedulesByDay={schedulesByDay}
-              loading={loadingSchedules}
+              loading={loadingSchedules || loadingSubjects}
               onAddSchedule={() => setScheduleModalVisible(true)}
               onDeleteSchedule={handleDeleteSchedule}
             />

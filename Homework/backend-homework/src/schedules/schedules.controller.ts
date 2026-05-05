@@ -12,8 +12,9 @@ export class SchedulesController {
 
   @Get()
   findAll(@Request() req: any, @Query('projectId') projectId?: string) {
+    const isAdmin = req.user.role === Role.SUPER_ADMIN || req.user.role === Role.SCHOOL_ADMIN;
     return this.schedulesService.findAll({
-      userId: req.user.userId,
+      userId: isAdmin ? undefined : req.user.userId,
       institutionId: req.user.institutionId,
       projectId
     });

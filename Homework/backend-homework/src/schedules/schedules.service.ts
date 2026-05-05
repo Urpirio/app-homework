@@ -8,7 +8,7 @@ export class SchedulesService {
   async findAll(query: { institutionId?: string; projectId?: string; userId?: string }) {
     return this.prisma.schedule.findMany({
       where: {
-        institutionId: query.institutionId,
+        ...(query.institutionId ? { institutionId: query.institutionId } : {}),
         projectId: query.projectId,
         project: query.userId ? {
           OR: [

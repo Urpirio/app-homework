@@ -128,6 +128,9 @@ export class ClassroomsService {
             user: {
               select: { fullName: true },
             },
+            _count: {
+              select: { tasks: true, members: true },
+            },
           },
         },
       },
@@ -140,8 +143,9 @@ export class ClassroomsService {
     return classroom.projects.map(p => ({
       id: p.id,
       name: p.name,
-      teacher: p.user.fullName,
-      // Here we could calculate avgGrade if we had the logic
+      teacher: p.user?.fullName || 'Sin profesor',
+      taskCount: p._count?.tasks ?? 0,
+      studentCount: p._count?.members ?? 0,
       avgGrade: 0, 
     }));
   }
