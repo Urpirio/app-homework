@@ -7,7 +7,7 @@ import { ErrorState } from '@/components/shared/ErrorState';
 import { SkeletonLoader } from '@/components/shared/SkeletonLoader';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useInstitutionClassrooms } from '@/hooks/api/useClassrooms';
-import { useInstitution as useInstitutionQuery, useInstitutionStats } from '@/hooks/api/useInstitutions';
+import { useInstitution as useInstitutionQuery, useInstitutionStats, useInstitutionAnalytics } from '@/hooks/api/useInstitutions';
 import { useUsers } from '@/hooks/api/useUsers';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,7 +40,7 @@ function mkCfg(t: any, c: string) {
   return { backgroundColor: t.colors.card, backgroundGradientFrom: t.colors.card, backgroundGradientTo: t.colors.card, decimalCount: 0, color: (o = 1) => c.replace('1)', `${o})`), labelColor: () => t.colors.textSecondary, propsForBackgroundLines: { stroke: t.colors.border + '30' }, propsForLabels: { fontSize: 10 }, style: { borderRadius: 16 } };
 }
 
-const cs = StyleSheet.create({ card: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16, overflow: 'hidden' }, title: { fontSize: 16, fontWeight: '700', marginBottom: 12 } });
+const cs = StyleSheet.create({ card: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16, overflow: 'hidden' }, title: { fontSize: 16, fontWeight: '700', marginBottom: 12 }, kpiRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, gap: 10 }, kpiCard: { flex: 1, padding: 12, borderRadius: 12, alignItems: 'center' }, kpiVal: { fontSize: 16, fontWeight: '800' }, kpiLbl: { fontSize: 10, marginTop: 2, opacity: 0.8 } });
 
 export default function InstitutionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -52,10 +52,11 @@ export default function InstitutionDetailScreen() {
   const [classManualVisible, setClassManualVisible] = useState(false);
   const { data: inst, isLoading: iL, isError: iE, error: eObj, refetch: rI } = useInstitutionQuery(id!);
   const { data: stats, isLoading: sL, refetch: rS } = useInstitutionStats(id!);
+  const { data: analytics, isLoading: aL } = useInstitutionAnalytics(id!);
   const { data: cls, isLoading: cL } = useInstitutionClassrooms(id!);
   const { data: uD, isLoading: uL, fetchNextPage: fN, hasNextPage: hN } = useUsers({ institutionId: id! });
   const users = useMemo(() => uD?.pages.flatMap((p) => p.data) ?? [], [uD]);
-  const loading = iL || sL;
+  const loading = iL || sL || aL;
   const refresh = () => { rI(); rS(); };
   const cw = SCREEN_WIDTH - 72;
 
@@ -145,18 +146,61 @@ export default function InstitutionDetailScreen() {
               </View>
               <View style={st.section}>
                 <Text style={[st.secTitle, { color: theme.colors.text }]}>Métricas Institucionales</Text>
-                <View style={[cs.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border + '50' }]}>
-                  <Text style={[cs.title, { color: theme.colors.text }]}>Tendencia de Inscripciones</Text>
-                  <LineChart data={{ labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'], datasets: [{ data: [12, 19, 14, 25, 22, 30], strokeWidth: 2 }] }} width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(0,122,255,1)')} bezier style={{ borderRadius: 16, marginLeft: -16 }} withInnerLines={false} withOuterLines={false} fromZero />
+                
+                {/* KPIs Row */}
+                <View style={cs.kpiRow}>
+                  <View style={[cs.kpiCard, { backgroundColor: '#007AFF15' }]}>
+                    <Text style={[cs.kpiVal, { color: '#007AFF' }]}>{analytics?.kpis?.engagementScore ?? 0}%</Text>
+                    <Text style={[cs.kpiLbl, { color: '#007AFF' }]}>Compromiso</Text>
+                  </View>
+                  <View style={[cs.kpiCard, { backgroundColor: '#34C75915' }]}>
+                    <Text style={[cs.kpiVal, { color: '#34C759' }]}>{analytics?.kpis?.submissionRate ?? 0}%</Text>
+                    <Text style={[cs.kpiLbl, { color: '#34C759' }]}>Entregas</Text>
+                  </View>
+                  <View style={[cs.kpiCard, { backgroundColor: '#FF950015' }]}>
+                    <Text style={[cs.kpiVal, { color: '#FF9500' }]}>{analytics?.libraryStats?.totalLoans ?? 0}</Text>
+                    <Text style={[cs.kpiLbl, { color: '#FF9500' }]}>Préstamos</Text>
+                  </View>
                 </View>
-                <View style={[cs.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border + '50' }]}>
-                  <Text style={[cs.title, { color: theme.colors.text }]}>Actividad por Día</Text>
-                  <BarChart data={{ labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'], datasets: [{ data: [45, 52, 38, 60, 55, 20, 10] }] }} width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(88,86,214,1)')} style={{ borderRadius: 16, marginLeft: -16 }} fromZero showValuesOnTopOfBars yAxisLabel="" yAxisSuffix="" />
-                </View>
-                <View style={[cs.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border + '50' }]}>
-                  <Text style={[cs.title, { color: theme.colors.text }]}>Rendimiento por Aula</Text>
-                  <BarChart data={{ labels: ['Aula A', 'Aula B', 'Aula C', 'Aula D'], datasets: [{ data: [78, 85, 72, 90] }] }} width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(52,199,89,1)')} style={{ borderRadius: 16, marginLeft: -16 }} fromZero showValuesOnTopOfBars yAxisLabel="" yAxisSuffix="" />
-                </View>
+
+                {analytics?.enrollmentTrend && (
+                  <View style={[cs.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border + '50' }]}>
+                    <Text style={[cs.title, { color: theme.colors.text }]}>Tendencia de Inscripciones</Text>
+                    <LineChart 
+                      data={{ 
+                        labels: analytics.enrollmentTrend.labels, 
+                        datasets: [{ data: analytics.enrollmentTrend.data.length > 0 ? analytics.enrollmentTrend.data : [0], strokeWidth: 2 }] 
+                      }} 
+                      width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(0,122,255,1)')} bezier style={{ borderRadius: 16, marginLeft: -16 }} withInnerLines={false} withOuterLines={false} fromZero 
+                    />
+                  </View>
+                )}
+
+                {analytics?.attendanceStats && (
+                  <View style={[cs.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border + '50' }]}>
+                    <Text style={[cs.title, { color: theme.colors.text }]}>Asistencia General</Text>
+                    <BarChart 
+                      data={{ 
+                        labels: analytics.attendanceStats.labels, 
+                        datasets: [{ data: analytics.attendanceStats.data.length > 0 ? analytics.attendanceStats.data : [0] }] 
+                      }} 
+                      width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(88,86,214,1)')} style={{ borderRadius: 16, marginLeft: -16 }} fromZero showValuesOnTopOfBars yAxisLabel="" yAxisSuffix="" 
+                    />
+                  </View>
+                )}
+
+                {analytics?.gradeDistribution && (
+                  <View style={[cs.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border + '50' }]}>
+                    <Text style={[cs.title, { color: theme.colors.text }]}>Distribución de Calificaciones</Text>
+                    <BarChart 
+                      data={{ 
+                        labels: analytics.gradeDistribution.labels, 
+                        datasets: [{ data: analytics.gradeDistribution.data.length > 0 ? analytics.gradeDistribution.data : [0] }] 
+                      }} 
+                      width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(52,199,89,1)')} style={{ borderRadius: 16, marginLeft: -16 }} fromZero showValuesOnTopOfBars yAxisLabel="" yAxisSuffix="" 
+                    />
+                  </View>
+                )}
               </View>
             </View>
           )}
@@ -194,7 +238,15 @@ export default function InstitutionDetailScreen() {
           )}
         </ScrollView>
 
-        <EnrollmentOptionsModal visible={optionsVisible} onClose={() => setOptionsVisible(false)} onSelectOption={(o) => { setOptionsVisible(false); if (o === 'SINGLE') router.push(`/admin/institution/${id}/enroll-student`); }} />
+        <EnrollmentOptionsModal 
+          visible={optionsVisible} 
+          onClose={() => setOptionsVisible(false)} 
+          onSelectOption={(o) => { 
+            setOptionsVisible(false); 
+            if (o === 'SINGLE') router.push(`/admin/institution/${id}/enroll-student`);
+            if (o === 'BULK') router.push(`/admin/institution/${id}/bulk-enrollment`);
+          }} 
+        />
         <ClassroomOptionsModal visible={classOptionsVisible} onClose={() => setClassOptionsVisible(false)} onSelectOption={(o) => { setClassOptionsVisible(false); if (o === 'SINGLE') router.push(`/admin/institution/${id}/create-classroom`); }} />
         <ClassroomModal visible={classManualVisible} onClose={() => setClassManualVisible(false)} institutionId={id as string} onSuccess={refresh} />
       </ThemedView>

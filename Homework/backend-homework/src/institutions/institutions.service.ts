@@ -3,6 +3,7 @@ import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { EnrollStudentDto } from './dto/enroll-student.dto';
+import * as XLSX from 'xlsx';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -335,10 +336,36 @@ export class InstitutionsService {
     const submissionRate = totalExpected > 0 ? Math.round(((done + inProgress) / totalExpected) * 100) : 0;
     const engagementScore = gradedSubmissions > 0 ? Math.min(100, Math.round((submissions.length / gradedSubmissions) * 20)) : 0; // Arbitrary score: 5 submissions per student = 100%
 
+    // 5. Attendance Stats
+    const attendanceData = await this.prisma.attendance.groupBy({
+      by: ['status'],
+      where: { project: { institutionId: id } },
+      _count: { id: true },
+    });
+
+    const attendanceStats = {
+      labels: ['Presente', 'Ausente', 'Tarde', 'Excusa'],
+      data: [
+        attendanceData.find(a => a.status === 'PRESENT')?._count.id || 0,
+        attendanceData.find(a => a.status === 'ABSENT')?._count.id || 0,
+        attendanceData.find(a => a.status === 'LATE')?._count.id || 0,
+        attendanceData.find(a => a.status === 'EXCUSED')?._count.id || 0,
+      ],
+    };
+
+    // 6. Library Stats
+    const libraryLoans = await this.prisma.bookLoan.count({
+      where: { book: { institutionId: id } },
+    });
+
     return {
       enrollmentTrend,
       gradeDistribution,
       taskCompletion,
+      attendanceStats,
+      libraryStats: {
+        totalLoans: libraryLoans,
+      },
       kpis: {
         avgResponseTime,
         submissionRate,
@@ -380,5 +407,55 @@ export class InstitutionsService {
     await this.usersService.generateIdentityCode(newUser.id);
 
     return this.usersService.findById(newUser.id);
+  }
+
+  async bulkEnrollStudents(institutionId: string, file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Archivo no proporcionado');
+
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet) as any[];
+
+    const results = {
+      success: 0,
+      errors: 0,
+      details: [] as string[],
+    };
+
+    for (const row of data) {
+      try {
+        const fullName = row.fullName || row['Nombre Completo'] || row['nombre'];
+        const email = row.email || row['Correo'] || row['email'];
+        const classroomId = row.classroomId || row['AulaID'] || row['aula'];
+
+        if (!fullName || !email) {
+          results.errors++;
+          results.details.push(`Fila omitida: falta nombre o email`);
+          continue;
+        }
+
+        const salt = await bcrypt.genSalt();
+        const hashedPassword = await bcrypt.hash('temp1234', salt);
+
+        const newUser = await this.usersService.create({
+          email,
+          fullName,
+          password: hashedPassword,
+          role: Role.STUDENT,
+          institution: { connect: { id: institutionId } },
+          isVerified: true,
+          ...(classroomId ? { classroom: { connect: { id: classroomId } } } : {}),
+        });
+
+        await this.usersService.generateIdentityCode(newUser.id);
+        results.success++;
+      } catch (error: any) {
+        results.errors++;
+        results.details.push(`Error en ${row.email || 'desconocido'}: ${error.message}`);
+      }
+    }
+
+    return results;
   }
 }

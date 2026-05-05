@@ -45,6 +45,7 @@ export default function CreateTeacherScreen() {
         email,
         password,
         specialty,
+        bio,
         role: 'TEACHER',
         institutionId: id
       });

@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -92,5 +93,15 @@ export class InstitutionsController {
     @Body() body: EnrollStudentDto,
   ) {
     return this.institutionsService.enrollStudent(id, body);
+  }
+
+  @Post(':id/bulk-enroll')
+  @Roles(Role.SUPER_ADMIN, Role.SCHOOL_ADMIN)
+  @UseInterceptors(FileInterceptor('file'))
+  async bulkEnrollStudents(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.institutionsService.bulkEnrollStudents(id, file);
   }
 }

@@ -21,7 +21,9 @@ interface InstitutionStats {
 export interface AnalyticsData {
   enrollmentTrend: { labels: string[]; data: number[] };
   gradeDistribution: { labels: string[]; data: number[] };
+  attendanceStats: { labels: string[]; data: number[] };
   taskCompletion: { todo: number; inProgress: number; done: number };
+  libraryStats: { totalLoans: number };
   kpis: {
     avgResponseTime: number;
     submissionRate: number;

@@ -19,6 +19,9 @@ export default function EnrollStudentScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [parentName, setParentName] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
+  const [bio, setBio] = useState('');
   const [loading, setLoading] = useState(false);
 
   const generatePassword = () => {
