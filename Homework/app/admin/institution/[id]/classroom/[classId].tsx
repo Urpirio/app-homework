@@ -319,7 +319,8 @@ function SubjectsTab({ subjects, loading, error, onRetry, onAddSubject, onSubjec
         <FlatList
           data={subjects}
           keyExtractor={(item) => item.id}
-          scrollEnabled={false}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <SubjectItem subject={item} onPress={() => onSubjectPress(item.id)} />
           )}
@@ -417,7 +418,8 @@ function StudentsTab({ students, onAddStudent, onRemoveStudent, onStudentPress }
         <FlatList
           data={students}
           keyExtractor={(item) => item.id}
-          scrollEnabled={false}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <Pressable
               onPress={() => onStudentPress(item.id)}

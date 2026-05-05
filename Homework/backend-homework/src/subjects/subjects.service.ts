@@ -13,6 +13,7 @@ export class SubjectsService {
 
     const classroom = await this.prisma.classroom.findUnique({
       where: { id: classId },
+      include: { students: { select: { id: true } } },
     });
 
     if (!classroom) {
@@ -30,18 +31,30 @@ export class SubjectsService {
     });
 
     // Add teachers as members
+    const memberOperations: any[] = [];
     if (data.teacherIds && data.teacherIds.length > 0) {
-      await Promise.all(
-        data.teacherIds.map(teacherId =>
+      data.teacherIds.forEach(teacherId =>
+        memberOperations.push(
           this.prisma.projectMember.create({
-            data: {
-              projectId: project.id,
-              userId: teacherId,
-              role: 'teacher',
-            },
+            data: { projectId: project.id, userId: teacherId, role: 'teacher' },
           })
         )
       );
+    }
+
+    // Add all classroom students as members
+    if (classroom.students.length > 0) {
+      classroom.students.forEach(student =>
+        memberOperations.push(
+          this.prisma.projectMember.create({
+            data: { projectId: project.id, userId: student.id, role: 'student' },
+          })
+        )
+      );
+    }
+
+    if (memberOperations.length > 0) {
+      await Promise.all(memberOperations);
     }
 
     return this.findOne(project.id);
