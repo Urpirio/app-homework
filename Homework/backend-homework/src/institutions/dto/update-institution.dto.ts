@@ -6,7 +6,7 @@ export class UpdateInstitutionDto {
   name?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsString()
   logoUrl?: string;
 
   @IsOptional()
