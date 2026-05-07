@@ -8,7 +8,11 @@ export class EmailService {
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('RESEND_API_KEY');
-    this.resend = new Resend(apiKey);
+    if (apiKey) {
+      this.resend = new Resend(apiKey);
+    } else {
+      console.warn('RESEND_API_KEY is not defined. Email service will not work.');
+    }
   }
 
   private getHtmlTemplate(title: string, subtitle: string, code: string, footerNote: string) {
@@ -82,6 +86,10 @@ export class EmailService {
   }
 
   async sendVerificationCode(email: string, code: string) {
+    if (!this.resend) {
+      console.warn('Cannot send verification email: Resend is not initialized.');
+      return;
+    }
     try {
       const html = this.getHtmlTemplate(
         '¡Bienvenido a bordo!',
@@ -102,6 +110,10 @@ export class EmailService {
   }
 
   async sendPasswordResetCode(email: string, code: string) {
+    if (!this.resend) {
+      console.warn('Cannot send password reset email: Resend is not initialized.');
+      return;
+    }
     try {
       const html = this.getHtmlTemplate(
         'Recupera tu acceso',
