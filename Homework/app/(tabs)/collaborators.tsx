@@ -28,16 +28,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { getFullUrl } from '@/utils/media';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const API_URL = 'https://app-homework-production.up.railway.app';
-
-const getFullUrl = (path: string) => {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
-  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
-};
 
 /** Format a Date into a human-readable chat timestamp */
 function formatMessageTime(date: Date): string {

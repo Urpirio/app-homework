@@ -5,6 +5,7 @@ import { ThemedView } from '@/components/shared/ThemedView';
 import { useInstitution, useUpdateInstitution } from '@/hooks/api/useInstitutions';
 import { useFileUpload } from '@/hooks/api/useUploads';
 import { useTheme } from '@/hooks/useTheme';
+import { getFullUrl } from '@/utils/media';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -55,6 +56,16 @@ export default function EditInstitutionScreen() {
   }, [institution]);
 
   const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Toast.show({
+        type: 'error',
+        text1: 'Permiso denegado',
+        text2: 'Necesitamos acceso a tu galería para cambiar el logo.',
+      });
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -77,12 +88,14 @@ export default function EditInstitutionScreen() {
     try {
       let finalLogoUrl = institution?.logoUrl;
 
-      // Upload new logo if changed
-      if (logoChanged && logoUri && !logoUri.startsWith('http')) {
+      // Upload new logo if it's a local file
+      if (logoUri && (logoUri.startsWith('file://') || logoUri.startsWith('content://'))) {
+        const filename = logoUri.split('/').pop() ?? 'logo.jpg';
+        const ext = /\.(\w+)$/.exec(filename)?.[1] ?? 'jpg';
         const uploadResult = await upload({
           uri: logoUri,
-          name: `institution-logo-${id}.jpg`,
-          mimeType: 'image/jpeg',
+          name: `institution-logo-${id}.${ext}`,
+          mimeType: `image/${ext === 'png' ? 'png' : 'jpeg'}`,
         });
         finalLogoUrl = uploadResult.fileUrl;
       }
@@ -166,7 +179,7 @@ export default function EditInstitutionScreen() {
                 accessibilityLabel="Cambiar logo de la institución"
               >
                 {logoUri ? (
-                  <Image source={{ uri: logoUri }} style={styles.logo} />
+                  <Image source={{ uri: getFullUrl(logoUri) }} style={styles.logo} />
                 ) : (
                   <Ionicons name="camera" size={40} color={theme.colors.textSecondary} />
                 )}

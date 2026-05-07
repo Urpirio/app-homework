@@ -7,6 +7,7 @@ import { ThemedView } from '@/components/shared/ThemedView';
 import { useInstitutions } from '@/hooks/api/useInstitutions';
 import { useTheme } from '@/hooks/useTheme';
 import type { Institution } from '@/types/institution';
+import { getFullUrl } from '@/utils/media';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -62,7 +63,7 @@ export default function InstitutionsListScreen() {
           ]}
         >
           {item.logoUrl ? (
-            <Image source={{ uri: item.logoUrl }} style={styles.logo} />
+            <Image source={{ uri: getFullUrl(item.logoUrl) }} style={styles.logo} />
           ) : (
             <Ionicons name="business" size={24} color={theme.colors.primary} />
           )}

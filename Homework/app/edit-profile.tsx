@@ -3,6 +3,7 @@ import { AnimatedInput } from '@/components/login/AnimatedInput';
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
+import { useFileUpload } from '@/hooks/api/useUploads';
 import api from '@/utils/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,18 +24,14 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { getFullUrl } from '@/utils/media';
 
-const API_URL = 'https://app-homework-production.up.railway.app';
-const getFullUrl = (path: string) => {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
-  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
-};
 
 export default function EditProfileScreen() {
   const { theme } = useTheme();
 
   const [fetching, setFetching] = useState(true);
+  const { upload, progress, isUploading } = useFileUpload();
   const [saving, setSaving] = useState(false);
 
   // Editable fields
@@ -96,14 +93,14 @@ export default function EditProfileScreen() {
 
       // Upload new avatar if it's a local file
       if (avatarUri && (avatarUri.startsWith('file://') || avatarUri.startsWith('content://'))) {
-        const formData = new FormData();
         const filename = avatarUri.split('/').pop() ?? 'avatar.jpg';
         const ext = /\.(\w+)$/.exec(filename)?.[1] ?? 'jpg';
-        formData.append('file', { uri: avatarUri, name: filename, type: `image/${ext}` } as any);
-        const uploadRes = await api.post('/uploads', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+        const uploadRes = await upload({
+          uri: avatarUri,
+          name: filename,
+          mimeType: `image/${ext === 'png' ? 'png' : 'jpeg'}`,
         });
-        finalAvatarUrl = uploadRes.data.fileUrl;
+        finalAvatarUrl = uploadRes.fileUrl;
       }
 
       await api.patch('/auth/profile', {
@@ -125,6 +122,8 @@ export default function EditProfileScreen() {
     }
   };
 
+  const isActuallySaving = saving || isUploading;
+
   if (fetching) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -135,8 +134,7 @@ export default function EditProfileScreen() {
     );
   }
 
-  const isLocalImage = avatarUri && (avatarUri.startsWith('file://') || avatarUri.startsWith('content://'));
-  const displayUri = avatarUri ? (isLocalImage ? avatarUri : getFullUrl(avatarUri)) : null;
+  const displayUri = getFullUrl(avatarUri);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -174,6 +172,14 @@ export default function EditProfileScreen() {
                 </View>
               </Pressable>
               <Text style={[styles.avatarHint, { color: theme.colors.textSecondary }]}>Toca para cambiar tu foto</Text>
+              {isUploading && (
+                <View style={styles.progressContainer}>
+                  <View style={[styles.progressBar, { backgroundColor: theme.colors.border + '30' }]}>
+                    <View style={[styles.progressFill, { backgroundColor: theme.colors.primary, width: `${progress}%` }]} />
+                  </View>
+                  <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>Subiendo foto... {progress}%</Text>
+                </View>
+              )}
             </Animated.View>
 
             {/* Read-only info */}
@@ -242,7 +248,7 @@ export default function EditProfileScreen() {
               </FieldGroup>
 
               <View style={styles.saveBtn}>
-                <AnimatedButton title="Guardar Cambios" onPress={handleSave} isLoading={saving} />
+                <AnimatedButton title="Guardar Cambios" onPress={handleSave} isLoading={isActuallySaving} />
               </View>
             </Animated.View>
 
@@ -286,6 +292,10 @@ const styles = StyleSheet.create({
   avatarInitial: { fontSize: 42, fontWeight: '900' },
   cameraBtn: { position: 'absolute', bottom: 0, right: 0, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#FFF' },
   avatarHint: { fontSize: 12, fontWeight: '500' },
+  progressContainer: { marginTop: 12, width: '80%', alignItems: 'center' },
+  progressBar: { width: '100%', height: 6, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 3 },
+  progressText: { fontSize: 12, marginTop: 4 },
 
   readOnlyCard: { borderRadius: 18, paddingHorizontal: 16, paddingVertical: 4, marginBottom: 20 },
   readOnlyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },

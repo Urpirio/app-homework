@@ -10,6 +10,7 @@ import { useInstitutionClassrooms } from '@/hooks/api/useClassrooms';
 import { useInstitution as useInstitutionQuery, useInstitutionStats, useInstitutionAnalytics } from '@/hooks/api/useInstitutions';
 import { useUsers } from '@/hooks/api/useUsers';
 import { useTheme } from '@/hooks/useTheme';
+import { getFullUrl } from '@/utils/media';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
@@ -91,7 +92,7 @@ export default function InstitutionDetailScreen() {
           <View style={st.headerSection}>
             <Pressable onPress={() => router.back()} style={st.backBtn}><Ionicons name="arrow-back" size={24} color={theme.colors.text} /></Pressable>
             <View style={[st.logoBox, { backgroundColor: theme.colors.primaryLight }]}>
-              {inst?.logoUrl ? <Image source={{ uri: inst.logoUrl }} style={st.logoImg} /> : <Ionicons name="business" size={40} color={theme.colors.primary} />}
+              {inst?.logoUrl ? <Image source={{ uri: getFullUrl(inst.logoUrl) }} style={st.logoImg} /> : <Ionicons name="business" size={40} color={theme.colors.primary} />}
             </View>
             <Text style={[st.instTitle, { color: theme.colors.text }]}>{inst?.name}</Text>
             <Text style={[st.instAddr, { color: theme.colors.textSecondary }]}>{inst?.address}</Text>
@@ -146,7 +147,7 @@ export default function InstitutionDetailScreen() {
               </View>
               <View style={st.section}>
                 <Text style={[st.secTitle, { color: theme.colors.text }]}>Métricas Institucionales</Text>
-                
+
                 {/* KPIs Row */}
                 <View style={cs.kpiRow}>
                   <View style={[cs.kpiCard, { backgroundColor: '#007AFF15' }]}>
@@ -166,12 +167,12 @@ export default function InstitutionDetailScreen() {
                 {analytics?.enrollmentTrend && (
                   <View style={[cs.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border + '50' }]}>
                     <Text style={[cs.title, { color: theme.colors.text }]}>Tendencia de Inscripciones</Text>
-                    <LineChart 
-                      data={{ 
-                        labels: analytics.enrollmentTrend.labels, 
-                        datasets: [{ data: analytics.enrollmentTrend.data.length > 0 ? analytics.enrollmentTrend.data : [0], strokeWidth: 2 }] 
-                      }} 
-                      width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(0,122,255,1)')} bezier style={{ borderRadius: 16, marginLeft: -16 }} withInnerLines={false} withOuterLines={false} fromZero 
+                    <LineChart
+                      data={{
+                        labels: analytics.enrollmentTrend.labels,
+                        datasets: [{ data: analytics.enrollmentTrend.data.length > 0 ? analytics.enrollmentTrend.data : [0], strokeWidth: 2 }]
+                      }}
+                      width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(0,122,255,1)')} bezier style={{ borderRadius: 16, marginLeft: -16 }} withInnerLines={false} withOuterLines={false} fromZero
                     />
                   </View>
                 )}
@@ -179,12 +180,12 @@ export default function InstitutionDetailScreen() {
                 {analytics?.attendanceStats && (
                   <View style={[cs.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border + '50' }]}>
                     <Text style={[cs.title, { color: theme.colors.text }]}>Asistencia General</Text>
-                    <BarChart 
-                      data={{ 
-                        labels: analytics.attendanceStats.labels, 
-                        datasets: [{ data: analytics.attendanceStats.data.length > 0 ? analytics.attendanceStats.data : [0] }] 
-                      }} 
-                      width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(88,86,214,1)')} style={{ borderRadius: 16, marginLeft: -16 }} fromZero showValuesOnTopOfBars yAxisLabel="" yAxisSuffix="" 
+                    <BarChart
+                      data={{
+                        labels: analytics.attendanceStats.labels,
+                        datasets: [{ data: analytics.attendanceStats.data.length > 0 ? analytics.attendanceStats.data : [0] }]
+                      }}
+                      width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(88,86,214,1)')} style={{ borderRadius: 16, marginLeft: -16 }} fromZero showValuesOnTopOfBars yAxisLabel="" yAxisSuffix=""
                     />
                   </View>
                 )}
@@ -192,12 +193,12 @@ export default function InstitutionDetailScreen() {
                 {analytics?.gradeDistribution && (
                   <View style={[cs.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border + '50' }]}>
                     <Text style={[cs.title, { color: theme.colors.text }]}>Distribución de Calificaciones</Text>
-                    <BarChart 
-                      data={{ 
-                        labels: analytics.gradeDistribution.labels, 
-                        datasets: [{ data: analytics.gradeDistribution.data.length > 0 ? analytics.gradeDistribution.data : [0] }] 
-                      }} 
-                      width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(52,199,89,1)')} style={{ borderRadius: 16, marginLeft: -16 }} fromZero showValuesOnTopOfBars yAxisLabel="" yAxisSuffix="" 
+                    <BarChart
+                      data={{
+                        labels: analytics.gradeDistribution.labels,
+                        datasets: [{ data: analytics.gradeDistribution.data.length > 0 ? analytics.gradeDistribution.data : [0] }]
+                      }}
+                      width={cw} height={180} chartConfig={mkCfg(theme, 'rgba(52,199,89,1)')} style={{ borderRadius: 16, marginLeft: -16 }} fromZero showValuesOnTopOfBars yAxisLabel="" yAxisSuffix=""
                     />
                   </View>
                 )}
@@ -238,14 +239,14 @@ export default function InstitutionDetailScreen() {
           )}
         </ScrollView>
 
-        <EnrollmentOptionsModal 
-          visible={optionsVisible} 
-          onClose={() => setOptionsVisible(false)} 
-          onSelectOption={(o) => { 
-            setOptionsVisible(false); 
+        <EnrollmentOptionsModal
+          visible={optionsVisible}
+          onClose={() => setOptionsVisible(false)}
+          onSelectOption={(o) => {
+            setOptionsVisible(false);
             if (o === 'SINGLE') router.push(`/admin/institution/${id}/enroll-student`);
             if (o === 'BULK') router.push(`/admin/institution/${id}/bulk-enrollment`);
-          }} 
+          }}
         />
         <ClassroomOptionsModal visible={classOptionsVisible} onClose={() => setClassOptionsVisible(false)} onSelectOption={(o) => { setClassOptionsVisible(false); if (o === 'SINGLE') router.push(`/admin/institution/${id}/create-classroom`); }} />
         <ClassroomModal visible={classManualVisible} onClose={() => setClassManualVisible(false)} institutionId={id as string} onSuccess={refresh} />

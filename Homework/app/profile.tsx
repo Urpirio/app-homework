@@ -24,13 +24,8 @@ import QRCode from 'react-native-qrcode-svg';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { getFullUrl } from '@/utils/media';
 
-const API_URL = 'https://app-homework-production.up.railway.app';
-const getFullUrl = (path: string) => {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
-  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
-};
 
 const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN: 'Super Administrador',

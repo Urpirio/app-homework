@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { getFullUrl } from '@/utils/media';
 
 import * as FileSystem from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -29,13 +30,6 @@ import { Alert } from 'react-native';
 
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const API_URL = 'https://app-homework-production.up.railway.app';
-
-const getFullUrl = (path: string) => {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
-  return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
-};
 
 export default function SubmissionsScreen() {
   const { taskId } = useLocalSearchParams();

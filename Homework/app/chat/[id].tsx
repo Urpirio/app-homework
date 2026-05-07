@@ -35,6 +35,7 @@ import {
 import Animated, { FadeInLeft, FadeInRight } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import { getFullUrl } from '@/utils/media';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -61,14 +62,6 @@ export default function ChatScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const API_URL = 'https://app-homework-production.up.railway.app';
-
-  const getFullUrl = (path: string) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    if (path.startsWith('file://')) return path;
-    return `${API_URL}${path.startsWith('/') ? '' : '/'}${path}`;
-  };
 
   // React Query hooks
   const { data: profile } = useProfile();

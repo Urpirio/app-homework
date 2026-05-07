@@ -1,6 +1,7 @@
 import { useCreateInstitution } from '@/hooks/api/useInstitutions';
 import { useFileUpload } from '@/hooks/api/useUploads';
 import { useTheme } from '@/hooks/useTheme';
+import { getFullUrl } from '@/utils/media';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
@@ -26,6 +27,16 @@ export const InstitutionModal = ({ visible, onClose, onSuccess }: InstitutionMod
   const { upload, progress, isUploading, reset: resetUpload } = useFileUpload();
 
   const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Toast.show({
+        type: 'error',
+        text1: 'Permiso denegado',
+        text2: 'Necesitamos acceso a tu galería para seleccionar un logo.',
+      });
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -52,22 +63,24 @@ export const InstitutionModal = ({ visible, onClose, onSuccess }: InstitutionMod
     }
 
     try {
-      let logoUrl: string | undefined;
+      let finalLogoUrl: string | undefined;
 
       // Upload logo if selected
       if (logoUri) {
+        const filename = logoUri.split('/').pop() ?? 'logo.jpg';
+        const ext = /\.(\w+)$/.exec(filename)?.[1] ?? 'jpg';
         const uploadResult = await upload({
           uri: logoUri,
-          name: `institution-logo-${Date.now()}.jpg`,
-          mimeType: 'image/jpeg',
+          name: `institution-logo-${Date.now()}.${ext}`,
+          mimeType: `image/${ext === 'png' ? 'png' : 'jpeg'}`,
         });
-        logoUrl = uploadResult.fileUrl;
+        finalLogoUrl = uploadResult.fileUrl;
       }
 
       await createMutation.mutateAsync({
         name: name.trim(),
         address: address.trim() || undefined,
-        logoUrl,
+        logoUrl: finalLogoUrl,
       });
 
       Toast.show({ type: 'success', text1: 'Éxito', text2: 'Institución creada correctamente' });
@@ -115,7 +128,7 @@ export const InstitutionModal = ({ visible, onClose, onSuccess }: InstitutionMod
             accessibilityLabel="Seleccionar logo de la institución"
           >
             {logoUri ? (
-              <Image source={{ uri: logoUri }} style={styles.logoPreview} />
+              <Image source={{ uri: getFullUrl(logoUri) }} style={styles.logoPreview} />
             ) : (
               <View style={styles.placeholderContainer}>
                 <Ionicons name="camera-outline" size={32} color={theme.colors.textSecondary} />
