@@ -191,6 +191,7 @@ export default function CollaboratorsScreen() {
       console.log('[DEBUG] Colaborador encontrado:', response.data);
       setFoundCollab({
         id: response.data.id,
+        identityCode: response.data.identityCode,
         name: response.data.fullName,
         role: response.data.role || 'Colaborador',
         avatar: response.data.avatarUrl,
@@ -250,7 +251,7 @@ export default function CollaboratorsScreen() {
     if (!foundCollab) return;
     
     try {
-      await api.post('/collaborators/request', { identityCode: identityCode.trim() });
+      await api.post('/collaborators/request', { identityCode: foundCollab.identityCode });
       setInvitationSent(true);
       
       // Después de un momento cerramos el modal y refrescamos
@@ -262,6 +263,7 @@ export default function CollaboratorsScreen() {
         fetchCollaborators();
       }, 2500);
     } catch (error: any) {
+      console.log(error)
       Toast.show({
         type: 'error',
         text1: 'Error',

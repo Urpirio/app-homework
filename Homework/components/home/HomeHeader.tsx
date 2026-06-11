@@ -1,4 +1,5 @@
 import { useTheme } from '@/hooks/useTheme';
+import { getFullUrl } from '@/utils/media';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
@@ -15,7 +16,7 @@ export const HomeHeader = ({ user }: { user?: any }) => {
       >
         <View style={[styles.avatarContainer, { backgroundColor: theme.colors.primaryLight }]}>
           {user?.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+            <Image source={{ uri: getFullUrl(user.avatarUrl) }} style={styles.avatarImage} />
           ) : (
             <Text style={[styles.avatarText, { color: theme.colors.primary }]}>
               {user?.fullName?.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'U'}

@@ -3,8 +3,10 @@ import { AnimatedInput } from '@/components/login/AnimatedInput';
 import { BackgroundShapes } from '@/components/login/BackgroundShapes';
 import { ThemedView } from '@/components/shared/ThemedView';
 import { useTheme } from '@/hooks/useTheme';
+import { authKeys } from '@/hooks/api/useAuth';
 import { useFileUpload } from '@/hooks/api/useUploads';
 import api from '@/utils/api';
+import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -29,6 +31,7 @@ import { getFullUrl } from '@/utils/media';
 
 export default function EditProfileScreen() {
   const { theme } = useTheme();
+  const queryClient = useQueryClient();
 
   const [fetching, setFetching] = useState(true);
   const { upload, progress, isUploading } = useFileUpload();
@@ -103,7 +106,7 @@ export default function EditProfileScreen() {
         finalAvatarUrl = uploadRes.fileUrl;
       }
 
-      await api.patch('/auth/profile', {
+      const { data: updatedUser } = await api.patch('/auth/profile', {
         fullName: fullName.trim(),
         bio: bio.trim() || undefined,
         specialty: specialty.trim() || undefined,
@@ -111,6 +114,8 @@ export default function EditProfileScreen() {
         parentPhone: parentPhone.trim() || undefined,
         avatarUrl: finalAvatarUrl ?? undefined,
       });
+
+      queryClient.setQueryData(authKeys.profile, updatedUser);
 
       Toast.show({ type: 'success', text1: 'Perfil actualizado', text2: 'Los cambios se guardaron correctamente.' });
       router.back();

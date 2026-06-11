@@ -9,9 +9,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import "react-native-reanimated";
 import Toast, { BaseToast, ErrorToast, InfoToast } from 'react-native-toast-message';
 
-// Tell Expo Router to start on 'login' instead of 'index'
 export const unstable_settings = {
-  initialRouteName: 'login',
+  initialRouteName: 'index',
 };
 
 const toastConfig = {
