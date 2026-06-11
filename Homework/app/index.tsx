@@ -2,13 +2,18 @@ import api from '@/utils/api';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function Index() {
+  const didNavigate = useRef(false);
+
   useEffect(() => {
+    if (didNavigate.current) return;
+    didNavigate.current = true;
+
     (async () => {
       try {
         const token = await SecureStore.getItemAsync('userToken');

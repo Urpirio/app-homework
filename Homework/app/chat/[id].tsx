@@ -214,7 +214,7 @@ export default function ChatScreen() {
   const sendMessage = async () => {
     if (message.trim().length === 0 && !currentAttachment) return;
 
-    const textToSend = message.trim() || (currentAttachment ? 'Archivo adjunto' : '');
+    const textToSend = message.trim();
 
     // Optimistic update — show message immediately before server confirms
     const tempId = `temp-${Date.now()}`;
@@ -223,6 +223,7 @@ export default function ChatScreen() {
       text: textToSend,
       sender: 'me',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      attachment: currentAttachment ?? undefined,
     };
     setOptimisticMessages(prev => [...prev, optimisticMsg]);
     setMessage('');
@@ -255,7 +256,7 @@ export default function ChatScreen() {
         targetId: id!,
         type: chatType,
         text: textToSend,
-        attachmentUrl: attachmentData?.fileUrl,
+        attachment: attachmentData,
       });
 
       // Remove the temp optimistic message (server data will replace it via cache refetch)
@@ -276,7 +277,7 @@ export default function ChatScreen() {
 
   const handleClearChat = async () => {
     try {
-      await deleteChatHistoryMutation.mutateAsync(id!);
+      await deleteChatHistoryMutation.mutateAsync({ conversationId: id!, type: chatType });
       setOptimisticMessages([]);
       setConfirmClearVisible(false);
       setOptionsVisible(false);
@@ -344,21 +345,31 @@ export default function ChatScreen() {
 
   const handleOpenDoc = async (doc: Attachment) => {
     try {
+      const safeFileName = doc.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const localUri = `${FileSystem.cacheDirectory}${safeFileName}`;
+
+      // If it's a remote URL, download it first
+      let fileUri = doc.uri;
+      if (doc.uri.startsWith('http')) {
+        const download = await FileSystem.downloadAsync(doc.uri, localUri);
+        fileUri = download.uri;
+      }
+
       if (Platform.OS === 'android') {
-        const contentUri = await FileSystem.getContentUriAsync(doc.uri);
+        const contentUri = await FileSystem.getContentUriAsync(fileUri);
         await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
           data: contentUri,
           flags: 1,
-          type: doc.mimeType || '*/*',
+          type: doc.mimeType || 'application/pdf',
         });
       } else {
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(doc.uri);
+          await Sharing.shareAsync(fileUri, { mimeType: doc.mimeType, dialogTitle: doc.name });
         }
       }
     } catch (error) {
       console.error('Error opening document:', error);
-      Alert.alert('Error', 'No se pudo abrir el archivo de forma directa.');
+      Alert.alert('Error', 'No se pudo abrir el archivo.');
     }
   };
 
@@ -454,7 +465,7 @@ export default function ChatScreen() {
                   }}
                   activeOpacity={0.8}
                 >
-                  <Image source={{ uri: getFullUrl(item.attachment.uri) }} style={styles.messageImage} />
+                  <Image source={{ uri: item.attachment.uri }} style={styles.messageImage} />
                   {item.attachment.type === 'video' && (
                     <View style={styles.videoIconOverlay}>
                       <Ionicons name="play-circle" size={32} color="#FFFFFF" />

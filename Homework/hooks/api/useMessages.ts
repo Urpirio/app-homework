@@ -35,11 +35,18 @@ interface MessagePage {
   total: number;
 }
 
+interface AttachmentPayload {
+  fileName: string;
+  fileUrl: string;
+  mimeType: string;
+  fileSize?: number;
+}
+
 interface SendMessagePayload {
   targetId: string;
   type: 'user' | 'project';
   text: string;
-  attachmentUrl?: string;
+  attachment?: AttachmentPayload;
 }
 
 export function useConversation(id: string, type: 'user' | 'project') {
@@ -93,11 +100,11 @@ export function useSendMessage() {
       targetId,
       type,
       text,
-      attachmentUrl,
+      attachment,
     }: SendMessagePayload): Promise<ChatMessage> => {
       const { data } = await api.post<ChatMessage>(
         `/messages/${targetId}`,
-        { text, attachmentUrl },
+        { text, attachment },
         { params: { type } }
       );
       return data;
@@ -115,8 +122,8 @@ export function useDeleteChatHistory() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (conversationId: string): Promise<void> => {
-      await api.delete(`/messages/${conversationId}/history`);
+    mutationFn: async ({ conversationId, type }: { conversationId: string; type: 'user' | 'project' }): Promise<void> => {
+      await api.delete(`/messages/${conversationId}/history`, { params: { type } });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messageKeys.all });

@@ -34,6 +34,36 @@ export class MessagesService {
     return !!activeTicket;
   }
 
+  /**
+   * Check if a user can access a project/subject chat.
+   * Allows: project owner, explicit ProjectMember, or student whose classroom owns the subject.
+   */
+  private async canAccessProject(userId: string, projectId: string): Promise<boolean> {
+    const isMember = await this.prisma.projectMember.findFirst({
+      where: { projectId, userId },
+    });
+    if (isMember) return true;
+
+    const isOwner = await this.prisma.project.findFirst({
+      where: { id: projectId, userId },
+    });
+    if (isOwner) return true;
+
+    // Subjects have a classroomId — allow any student enrolled in that classroom
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, classroomId: { not: null } },
+      select: { classroomId: true },
+    });
+    if (project?.classroomId) {
+      const studentInClass = await this.prisma.user.findFirst({
+        where: { id: userId, classroomId: project.classroomId },
+      });
+      if (studentInClass) return true;
+    }
+
+    return false;
+  }
+
   async getMessages(userId: string, collaboratorId: string, page = 1, limit = 50) {
       const allowed = await this.canChat(userId, collaboratorId);
       if (!allowed) {
@@ -74,15 +104,8 @@ export class MessagesService {
     }
 
   async getProjectMessages(userId: string, projectId: string, page = 1, limit = 50) {
-    // Verificar que el usuario es miembro del proyecto
-    const isMember = await this.prisma.projectMember.findFirst({
-      where: { projectId, userId },
-    });
-    const isOwner = await this.prisma.project.findFirst({
-      where: { id: projectId, userId },
-    });
-
-    if (!isMember && !isOwner) {
+    const allowed = await this.canAccessProject(userId, projectId);
+    if (!allowed) {
       throw new ForbiddenException('No tienes acceso a este chat grupal.');
     }
 
@@ -134,13 +157,8 @@ export class MessagesService {
     }
 
     if (options.projectId) {
-      const isMember = await this.prisma.projectMember.findFirst({
-        where: { projectId: options.projectId, userId: senderId },
-      });
-      const isOwner = await this.prisma.project.findFirst({
-        where: { id: options.projectId, userId: senderId },
-      });
-      if (!isMember && !isOwner) {
+      const allowed = await this.canAccessProject(senderId, options.projectId);
+      if (!allowed) {
         throw new ForbiddenException('No perteneces a este proyecto.');
       }
     }
@@ -207,13 +225,8 @@ export class MessagesService {
         throw new ForbiddenException('No puedes gestionar este chat. La solicitud aún no ha sido aceptada.');
       }
     } else {
-      const isMember = await this.prisma.projectMember.findFirst({
-        where: { projectId: conversationId, userId },
-      });
-      const isOwner = await this.prisma.project.findFirst({
-        where: { id: conversationId, userId },
-      });
-      if (!isMember && !isOwner) {
+      const allowed = await this.canAccessProject(userId, conversationId);
+      if (!allowed) {
         throw new ForbiddenException('No tienes acceso a este chat grupal.');
       }
     }

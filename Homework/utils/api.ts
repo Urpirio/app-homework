@@ -78,13 +78,16 @@ api.interceptors.response.use(
     originalRequest._retry = true;
     isRefreshing = true;
 
+    const refreshToken = await SecureStore.getItemAsync('refreshToken');
+
+    if (!refreshToken) {
+      // No session at all — index.tsx handles initial navigation, don't redirect here
+      isRefreshing = false;
+      processQueue(null, null);
+      return Promise.reject(error);
+    }
+
     try {
-      const refreshToken = await SecureStore.getItemAsync('refreshToken');
-
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
-      }
-
       const { data } = await axios.post(`${API_URL}/auth/refresh`, {
         refreshToken,
       });
@@ -104,7 +107,7 @@ api.interceptors.response.use(
       originalRequest.headers.Authorization = `Bearer ${accessToken}`;
       return api(originalRequest);
     } catch (refreshError) {
-      // Refresh failed — clear tokens and redirect to login
+      // Had a refresh token but it failed — session expired, redirect to login
       processQueue(refreshError, null);
 
       try {

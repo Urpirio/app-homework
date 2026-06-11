@@ -622,43 +622,84 @@ export default function CollaboratorsScreen() {
               </>
             ) : (
               <Animated.View entering={FadeInDown} style={styles.foundContainer}>
-                {!invitationSent ? (
-                  <>
-                    <View style={[styles.foundAvatar, { backgroundColor: theme.colors.primaryLight }]}>
-                      <Text style={[styles.foundAvatarText, { color: theme.colors.primary }]}>
-                        {foundCollab.name.charAt(0)}
-                      </Text>
-                    </View>
-                    <Text style={[styles.foundName, { color: theme.colors.text }]}>{foundCollab.name}</Text>
-                    <Text style={[styles.foundRole, { color: theme.colors.textSecondary }]}>{foundCollab.role}</Text>
-                    
-                    <View style={styles.modalButtons}>
-                      <TouchableOpacity 
-                        style={[styles.cancelBtn, { borderColor: theme.colors.border }]} 
-                        onPress={() => setFoundCollab(null)}
-                      >
-                        <Text style={[styles.cancelBtnText, { color: theme.colors.textSecondary }]}>Atrás</Text>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity 
-                        style={[styles.confirmBtn, { backgroundColor: theme.colors.primary }]} 
-                        onPress={handleConfirmAdd}
-                      >
-                        <Text style={styles.confirmBtnText}>Confirmar</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                ) : (
-                  <View style={styles.invitationContent}>
-                    <View style={[styles.successIcon, { backgroundColor: theme.colors.success + '20' }]}>
-                      <Ionicons name="mail-unread" size={40} color={theme.colors.success} />
-                    </View>
-                    <Text style={[styles.invitationTitle, { color: theme.colors.text }]}>¡Solicitud Enviada!</Text>
-                    <Text style={[styles.invitationText, { color: theme.colors.textSecondary }]}>
-                      Se ha enviado una invitación a {foundCollab.name}. Para comenzar a chatear, esta persona también deberá confirmar que te conoce.
-                    </Text>
-                  </View>
-                )}
+                {(() => {
+                  const existingRelation = collaborators.find(c => c.id === foundCollab.id);
+
+                  if (invitationSent) {
+                    return (
+                      <View style={styles.invitationContent}>
+                        <View style={[styles.successIcon, { backgroundColor: theme.colors.success + '20' }]}>
+                          <Ionicons name="mail-unread" size={40} color={theme.colors.success} />
+                        </View>
+                        <Text style={[styles.invitationTitle, { color: theme.colors.text }]}>¡Solicitud Enviada!</Text>
+                        <Text style={[styles.invitationText, { color: theme.colors.textSecondary }]}>
+                          Se ha enviado una invitación a {foundCollab.name}. Para comenzar a chatear, esta persona también deberá confirmar que te conoce.
+                        </Text>
+                      </View>
+                    );
+                  }
+
+                  return (
+                    <>
+                      <View style={[styles.foundAvatar, { backgroundColor: theme.colors.primaryLight }]}>
+                        <Text style={[styles.foundAvatarText, { color: theme.colors.primary }]}>
+                          {foundCollab.name.charAt(0)}
+                        </Text>
+                      </View>
+                      <Text style={[styles.foundName, { color: theme.colors.text }]}>{foundCollab.name}</Text>
+                      <Text style={[styles.foundRole, { color: theme.colors.textSecondary }]}>{foundCollab.role}</Text>
+
+                      {existingRelation?.status === 'active' ? (
+                        <View style={styles.invitationContent}>
+                          <View style={[styles.successIcon, { backgroundColor: theme.colors.success + '20' }]}>
+                            <Ionicons name="checkmark-circle" size={36} color={theme.colors.success} />
+                          </View>
+                          <Text style={[styles.invitationTitle, { color: theme.colors.success, fontSize: 16 }]}>
+                            Ya son colaboradores
+                          </Text>
+                          <TouchableOpacity
+                            style={[styles.confirmBtn, { backgroundColor: theme.colors.primary, marginTop: 16, width: '100%' }]}
+                            onPress={() => {
+                              setIsAddModalVisible(false);
+                              setFoundCollab(null);
+                              setIdentityCode('');
+                              router.push({ pathname: '/chat/[id]', params: { id: foundCollab.id, name: foundCollab.name, type: 'user' } });
+                            }}
+                          >
+                            <Text style={styles.confirmBtnText}>Ir al chat</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : existingRelation?.status === 'pending' ? (
+                        <View style={styles.invitationContent}>
+                          <View style={[styles.successIcon, { backgroundColor: '#FF9500' + '20' }]}>
+                            <Ionicons name="time" size={36} color="#FF9500" />
+                          </View>
+                          <Text style={[styles.invitationTitle, { color: '#FF9500', fontSize: 16 }]}>
+                            Solicitud pendiente
+                          </Text>
+                          <Text style={[styles.invitationText, { color: theme.colors.textSecondary }]}>
+                            Ya enviaste una solicitud a {foundCollab.name}. Espera a que la acepte para poder chatear.
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={styles.modalButtons}>
+                          <TouchableOpacity
+                            style={[styles.cancelBtn, { borderColor: theme.colors.border }]}
+                            onPress={() => setFoundCollab(null)}
+                          >
+                            <Text style={[styles.cancelBtnText, { color: theme.colors.textSecondary }]}>Atrás</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.confirmBtn, { backgroundColor: theme.colors.primary }]}
+                            onPress={handleConfirmAdd}
+                          >
+                            <Text style={styles.confirmBtnText}>Confirmar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </>
+                  );
+                })()}
               </Animated.View>
             )}
           </View>

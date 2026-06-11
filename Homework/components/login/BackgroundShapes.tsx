@@ -31,6 +31,9 @@ export const BackgroundShapes = () => {
       -1,
       true
     );
+    return () => {
+      floatAnim.value = 0;
+    };
   }, [floatAnim]);
 
   const animatedShape1 = useAnimatedStyle(() => ({
