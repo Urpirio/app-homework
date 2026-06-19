@@ -1,50 +1,73 @@
-# Welcome to your Expo app 👋
+# App Homework 📱
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+¡Bienvenido al repositorio de **App Homework**! Esta es una aplicación móvil desarrollada con **React Native** y **Expo**, utilizando el sistema de enrutamiento basado en archivos (`expo-router`).
 
-## Get started
+## 🚀 Características Principales
 
-1. Install dependencies
+Este proyecto está construido sobre un stack moderno y potente, que incluye:
 
+- **Expo & React Native:** Framework principal para desarrollo multiplataforma (iOS, Android, Web).
+- **Enrutamiento:** `expo-router` para navegación basada en archivos, y `@react-navigation` integrado.
+- **Gestión de Estado y Datos:** `@tanstack/react-query` para fetching asíncrono y caché, y `axios` para peticiones HTTP.
+- **Almacenamiento Local:** `expo-secure-store` y `@react-native-async-storage/async-storage`.
+- **Integración con Hardware:** 
+  - Cámara (`expo-camera`) y selector de imágenes (`expo-image-picker`)
+  - Autenticación biométrica (`expo-local-authentication`)
+  - Notificaciones push (`expo-notifications`)
+  - Geolocalización y portapapeles.
+- **Validación:** `zod` para validación de datos seguros.
+- **UI & Diseño:** `react-native-reanimated`, `react-native-chart-kit` para gráficos, y `sonner-native` para notificaciones toast.
+- **WebSockets:** `socket.io-client` para comunicación en tiempo real.
+
+## ⚙️ Requisitos Previos
+
+Asegúrate de tener instalado en tu entorno de desarrollo:
+- [Node.js](https://nodejs.org/es/) (Versión recomendada: 18+ o 20+)
+- [npm](https://www.npmjs.com/) o [Yarn](https://yarnpkg.com/)
+- [Expo CLI](https://docs.expo.dev/get-started/installation/)
+
+## 🛠️ Instalación y Uso
+
+1. **Clonar el repositorio**
+   ```bash
+   git clone https://github.com/Urpirio/app-homework.git
+   cd app-homework/Homework
+   ```
+
+2. **Instalar dependencias**
    ```bash
    npm install
    ```
 
-2. Start the app
-
+3. **Iniciar la aplicación**
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+Al ejecutar el comando de inicio, verás un código QR en la terminal. Puedes escanearlo con la aplicación **Expo Go** en tu dispositivo físico, o presionar `i` / `a` para abrirlo en el simulador de iOS o el emulador de Android.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 🧪 Pruebas (Testing)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+El proyecto incluye configuración de testing con **Jest** y React Native Testing Library.
+Para correr las pruebas:
 
 ```bash
-npm run reset-project
+npm run test
+# Para modo vigilancia (watch mode)
+npm run test:watch
+# Para ver la cobertura (coverage)
+npm run test:coverage
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 📂 Estructura del Proyecto
 
-## Learn more
+- `app/` - Pantallas y rutas de la aplicación (Expo Router).
+- `components/` - Componentes de interfaz reutilizables.
+- `hooks/` - Custom hooks de React.
+- `constants/` - Valores constantes, temas y configuraciones estáticas.
+- `assets/` - Imágenes, fuentes y recursos estáticos.
+- `__tests__/` - Pruebas unitarias y de integración.
+- `utils/` y `validation/` - Funciones de ayuda y esquemas de validación (Zod).
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+*Documentación generada automáticamente por tu asistente DanielBot 🤖🇩🇴*
